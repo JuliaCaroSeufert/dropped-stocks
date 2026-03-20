@@ -1,9 +1,14 @@
 """
 Stock Drop Monitor
 ==================
-Checks a watchlist of reputable stocks once per day (or on-demand) and sends
-an e-mail alert whenever any stock has fallen more than DROP_THRESHOLD_PCT
+Checks a watchlist of ~2,000 reputable stocks once per day (or on-demand) and
+sends an e-mail alert whenever any stock has fallen more than DROP_THRESHOLD_PCT
 over the past 7 days.
+
+The watchlist is built from:
+  • S&P 500, S&P 400 MidCap, S&P 600 SmallCap (fetched from Wikipedia, ~1,500)
+  • ~300 international blue-chips (ADRs / direct US-exchange listings)
+  The combined list is cached locally in .watchlist_cache.json for 7 days.
 
 Usage
 -----
@@ -15,6 +20,9 @@ Usage
 
   # Custom schedule: check at 08:30 every weekday
   python main.py --time 08:30 --weekdays-only
+
+  # Force a fresh Wikipedia fetch (ignore cache)
+  python main.py --refresh-cache --once
 
 Environment / .env variables
 -----------------------------
@@ -38,7 +46,7 @@ import schedule
 from dotenv import load_dotenv
 
 from checker import check_watchlist
-from config import DROP_THRESHOLD_PCT, WATCHLIST
+from config import DROP_THRESHOLD_PCT, WATCHLIST, _CACHE_FILE, build_watchlist
 from notifier import send_alert
 
 load_dotenv()
@@ -111,7 +119,7 @@ def run_check() -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Monitor reputable stocks and alert on weekly drops >10%."
+        description="Monitor ~2,000 reputable stocks and alert on weekly drops >10%."
     )
     parser.add_argument(
         "--once",
@@ -129,11 +137,26 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only run Monday–Friday (skip weekends).",
     )
+    parser.add_argument(
+        "--refresh-cache",
+        action="store_true",
+        help="Delete the local watchlist cache and force a fresh Wikipedia fetch.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+
+    if args.refresh_cache and _CACHE_FILE.exists():
+        _CACHE_FILE.unlink()
+        logger.info("Watchlist cache cleared; will re-fetch from Wikipedia.")
+        # Re-build the module-level WATCHLIST after clearing cache
+        import config as _cfg
+        _cfg.WATCHLIST.clear()
+        _cfg.WATCHLIST.update(build_watchlist())
+
+    logger.info("Watchlist contains %d tickers.", len(WATCHLIST))
 
     if args.once:
         run_check()
