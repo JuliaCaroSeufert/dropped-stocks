@@ -1,0 +1,19 @@
+# Cache
+.watchlist_cache.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment
+.env
+.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
