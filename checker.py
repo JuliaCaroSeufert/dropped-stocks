@@ -82,11 +82,6 @@ def check_watchlist(watchlist: dict[str, str]) -> list[StockAlert]:
             price_7d_ago, price_now, currency = _weekly_change(ticker)
             drop_pct = (price_now - price_7d_ago) / price_7d_ago * 100
 
-            logger.info(
-                "%s (%s): %.2f → %.2f (%+.2f%%)",
-                company, ticker, price_7d_ago, price_now, drop_pct,
-            )
-
             if drop_pct <= -DROP_THRESHOLD_PCT:
                 alerts.append(
                     StockAlert(
@@ -98,8 +93,8 @@ def check_watchlist(watchlist: dict[str, str]) -> list[StockAlert]:
                         currency=currency,
                     )
                 )
-        except Exception as exc:
-            logger.warning("Could not fetch data for %s: %s", ticker, exc)
+        except Exception:
+            pass
 
     # Sort by largest drop first
     alerts.sort(key=lambda a: a.drop_pct)

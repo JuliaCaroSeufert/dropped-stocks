@@ -56,6 +56,8 @@ logging.basicConfig(
     format="%(asctime)s  %(levelname)-8s  %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+# Suppress noisy yfinance download messages
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
@@ -110,7 +112,6 @@ def run_check() -> None:
         send_alert(alerts=alerts, threshold=DROP_THRESHOLD_PCT, **cfg)
     except Exception as exc:
         logger.error("Failed to send alert e-mail: %s", exc)
-        raise
 
 
 # ---------------------------------------------------------------------------
