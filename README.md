@@ -1,30 +1,17 @@
 # Stock Drop Monitor
 
-Sends you an e-mail whenever a stock from a reputable company drops **more than 10%** in the last 7 days.
+Sends you an e-mail whenever a stock drops **more than 10%** in the last 7 days.
 
 ## Monitored companies
 
-| Ticker | Company |
-|--------|---------|
-| GOOGL | Alphabet (Google) |
-| AAPL | Apple |
-| MSFT | Microsoft |
-| AMZN | Amazon |
-| META | Meta Platforms |
-| NVDA | NVIDIA |
-| TSLA | Tesla |
-| PYPL | PayPal |
-| V | Visa |
-| MA | Mastercard |
-| DB | Deutsche Bank |
-| JPM | JPMorgan Chase |
-| BAC | Bank of America |
-| GS | Goldman Sachs |
-| JNJ | Johnson & Johnson |
-| WMT | Walmart |
-| BRK-B | Berkshire Hathaway |
+The watchlist is built dynamically from ~2,000 reputable stocks:
 
-You can add or remove tickers in `config.py`, and adjust `DROP_THRESHOLD_PCT` there too.
+- **S&P 500, S&P 400 MidCap, S&P 600 SmallCap** — fetched from Wikipedia on first run (~1,500 US large/mid/small caps)
+- **~300 international blue-chips** — ADRs and direct US-exchange listings from the UK, Germany, France, Switzerland, Japan, South Korea, Canada, Australia, China, India, Brazil, and more
+
+The combined list is cached locally in `.watchlist_cache.json` for 7 days. If Wikipedia is unreachable, the international list is used as a fallback.
+
+You can adjust `DROP_THRESHOLD_PCT` in `config.py` to change the alert threshold.
 
 ---
 
@@ -67,6 +54,12 @@ python main.py
 
 ```bash
 python main.py --time 08:30 --weekdays-only
+```
+
+### Force a fresh watchlist fetch
+
+```bash
+python main.py --refresh-cache --once
 ```
 
 ### Run as a background service (Linux systemd example)
