@@ -49,8 +49,10 @@ def _weekly_change(ticker: str) -> tuple[float, float, str]:
     if data is None or len(data) < 2:
         raise ValueError(f"Not enough data for {ticker}")
 
-    # Use the closing price
-    closes = data["Close"].dropna()
+    # Use the closing price.
+    # In newer yfinance versions, data["Close"] for a single ticker is a
+    # one-column DataFrame rather than a Series; squeeze() normalises both cases.
+    closes = data["Close"].squeeze().dropna()
 
     price_now = float(closes.iloc[-1])
     # Find the close that is at least 7 calendar days ago
