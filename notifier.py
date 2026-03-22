@@ -8,7 +8,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from checker import StockAlert
+from checker import StockAlert, TrendPrediction
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,57 @@ def _fmt_rec(v: str | None) -> str:
     if not v:
         return "—"
     return v.replace("_", " ").title()
+
+
+def _trend_badge(t: TrendPrediction | None) -> str:
+    if t is None:
+        return ""
+    cfg = {
+        "BOTTOM_LIKELY": ("#2e7d32", "#e8f5e9", "📈 Tief möglicherweise erreicht"),
+        "MIXED":         ("#e65100", "#fff3e0", "⚖️  Gemischte Signale"),
+        "DOWNTREND":     ("#b71c1c", "#fce4ec", "📉 Abwärtstrend läuft weiter"),
+    }
+    color, bg, label = cfg.get(t.verdict, ("#555", "#f5f5f5", t.verdict))
+
+    bull_rows = "".join(
+        f"<tr><td style='padding:3px 6px;color:#2e7d32'>✓</td>"
+        f"<td style='padding:3px 6px'>{s}</td></tr>"
+        for s in t.bull_signals
+    ) or "<tr><td colspan='2' style='padding:3px 6px;color:#999'>Keine bullischen Signale</td></tr>"
+
+    bear_rows = "".join(
+        f"<tr><td style='padding:3px 6px;color:#b71c1c'>✗</td>"
+        f"<td style='padding:3px 6px'>{s}</td></tr>"
+        for s in t.bear_signals
+    ) or "<tr><td colspan='2' style='padding:3px 6px;color:#999'>Keine bärischen Signale</td></tr>"
+
+    return f"""
+  <div style="border:1px solid {color};background:{bg};border-radius:4px;
+              margin-top:12px;padding:12px">
+    <div style="font-weight:bold;font-size:15px;color:{color};margin-bottom:8px">
+      {label}
+      <span style="font-weight:normal;font-size:12px;color:#555">
+        &nbsp;— Konfidenz: {t.confidence}%
+      </span>
+    </div>
+    <table style="width:100%;border:none;font-size:12px">
+      <tr style="vertical-align:top">
+        <td style="border:none;padding:0;width:50%">
+          <strong style="color:#2e7d32">Bullische Signale</strong>
+          <table style="border:none;margin-top:4px"><tbody>{bull_rows}</tbody></table>
+        </td>
+        <td style="border:none;padding:0;width:50%">
+          <strong style="color:#b71c1c">Bärische Signale</strong>
+          <table style="border:none;margin-top:4px"><tbody>{bear_rows}</tbody></table>
+        </td>
+      </tr>
+    </table>
+    <p style="font-size:10px;color:#888;margin:8px 0 0">
+      Basiert auf: RSI-Level &amp; -Richtung · MACD-Histogramm · Bollinger Bands ·
+      Momentum-Dezeleration · 5/10-Tage-MA · Volumenanalyse.
+      Keine Garantie — technische Signale können scheitern.
+    </p>
+  </div>"""
 
 
 def _drop_color(pct: float) -> str:
@@ -187,6 +238,7 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
         <td style="padding:5px 10px;font-weight:bold">{_sector_context(a)}</td>
       </tr>
     </table>
+    {_trend_badge(a.trend)}
   </div>"""
 
     return f"""<!DOCTYPE html>
@@ -383,6 +435,12 @@ def _build_plain(alerts: list[StockAlert], threshold: float) -> str:
         lines.append(f"   P/E: {_fmt_float(a.trailing_pe)}  |  RSI: {_fmt_float(a.rsi,1)}"
                      f"  |  Analyst: {_fmt_rec(a.recommendation)}")
         lines.append(f"   Sector ({a.sector or '?'}): {_sector_context(a)}")
+        if a.trend:
+            lines.append(f"   Trend-Prognose: {a.trend.verdict}  (Konfidenz: {a.trend.confidence}%)")
+            for s in a.trend.bull_signals:
+                lines.append(f"     ✓ {s}")
+            for s in a.trend.bear_signals:
+                lines.append(f"     ✗ {s}")
         lines.append("")
     lines.append("Prices from Yahoo Finance. Not financial advice.")
     return "\n".join(lines)
