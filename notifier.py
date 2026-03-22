@@ -217,11 +217,148 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
   <h3>Full Analysis</h3>
   {cards}
 
+  <h3 style="margin-top:32px;color:#37474f">&#128218; Kennzahlen erklärt</h3>
+  <table style="font-size:13px">
+    <thead>
+      <tr>
+        <th style="width:18%">Kennzahl</th>
+        <th style="width:18%">Gut / Schlecht</th>
+        <th>Was sie bedeutet &amp; warum sie wichtig ist</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Weekly Drop</strong></td>
+        <td>—</td>
+        <td>Kursrückgang der Aktie innerhalb der letzten 7 Tage. Ab –10 % wird
+            der Alert ausgelöst. Ein starker Rückgang allein sagt noch nichts über
+            die Qualität des Unternehmens aus — erst die anderen Kennzahlen zeigen,
+            ob es eine Kaufgelegenheit ist oder ein strukturelles Problem vorliegt.</td>
+      </tr>
+      <tr>
+        <td><strong>Score</strong></td>
+        <td>≥ 70 stark &nbsp;/&nbsp; ≥ 50 möglich &nbsp;/&nbsp; &lt; 50 Vorsicht</td>
+        <td>Zusammenfassung aller Qualitätssignale auf einer Skala von 0–100.
+            Je höher der Score, desto wahrscheinlicher handelt es sich um ein
+            grundsolides Unternehmen, das gerade günstig bewertet ist.
+            Punkte kommen aus: ROE (20) + Schulden (20) + FCF (15) +
+            Sektorrückgang (15) + Analysten (10) + RSI (10) + Dividende (5) + Beta (5).</td>
+      </tr>
+      <tr>
+        <td><strong>ROE</strong><br><small>Return on Equity</small></td>
+        <td>≥ 15 % gut &nbsp;/&nbsp; &lt; 0 % schlecht</td>
+        <td>Eigenkapitalrendite — zeigt, wie viel Gewinn das Management aus dem
+            investierten Eigenkapital der Aktionäre herausholt.
+            Ein dauerhaft hoher ROE (≥ 15 %) ist ein starkes Zeichen für einen
+            Wettbewerbsvorteil (Burggraben). Beispiel: Coca-Cola, Apple.
+            Achtung: Bei sehr hohen Schulden kann der ROE künstlich aufgebläht sein.</td>
+      </tr>
+      <tr>
+        <td><strong>Debt / Equity</strong><br><small>Verschuldungsgrad</small></td>
+        <td>&lt; 80 gut &nbsp;/&nbsp; &gt; 200 riskant</td>
+        <td>Verhältnis von Fremdkapital zu Eigenkapital (in %).
+            Ein niedriger Wert bedeutet, das Unternehmen ist wenig verschuldet und
+            kann Krisen besser überstehen — Zinsen müssen auch in schlechten Jahren
+            bezahlt werden. Branchen wie Banken und Versorger haben strukturell
+            höhere Werte, was normal ist.</td>
+      </tr>
+      <tr>
+        <td><strong>Free Cash Flow</strong><br><small>Freier Cashflow</small></td>
+        <td>Positiv = gut</td>
+        <td>Geld, das nach allen Investitionen und Betriebskosten wirklich übrig bleibt.
+            Anders als der Gewinn (der durch Bilanzierung beeinflusst werden kann)
+            lügt der Cashflow nicht. Unternehmen mit positivem FCF können
+            Dividenden zahlen, Schulden tilgen und in Krisen selbst überleben —
+            ohne neue Aktien ausgeben zu müssen.</td>
+      </tr>
+      <tr>
+        <td><strong>Gross Margin</strong><br><small>Bruttomarge</small></td>
+        <td>Je höher, desto besser</td>
+        <td>Anteil des Umsatzes, der nach den reinen Produktionskosten übrig bleibt.
+            Eine hohe und stabile Bruttomarge zeigt, dass das Unternehmen Preissetzungsmacht
+            hat (z. B. Luxusgüter, Software). Niedrige Margen &lt; 20 % deuten
+            auf hartes Wettbewerbsumfeld hin (z. B. Handel, Rohstoffe).</td>
+      </tr>
+      <tr>
+        <td><strong>Trailing P/E</strong><br><small>Kurs-Gewinn-Verhältnis</small></td>
+        <td>Kontext abhängig</td>
+        <td>Aktueller Kurs geteilt durch den Gewinn der letzten 12 Monate.
+            Zeigt, wie viel Anleger bereit sind für €1 Gewinn zu zahlen.
+            Ein P/E von 15 bedeutet: der Markt zahlt 15-fachen Jahresgewinn.
+            Günstig oder teuer hängt stark vom Sektor ab — Tech-Aktien haben
+            historisch höhere KGVs als Banken. Wichtig: mit dem Sektor-Durchschnitt
+            und dem eigenen historischen KGV vergleichen.</td>
+      </tr>
+      <tr>
+        <td><strong>Forward P/E</strong></td>
+        <td>Niedriger als Trailing = Wachstum erwartet</td>
+        <td>Wie Trailing P/E, aber basierend auf den Gewinnschätzungen der
+            nächsten 12 Monate. Wenn Forward P/E deutlich unter Trailing P/E liegt,
+            erwartet der Markt steigende Gewinne — ein gutes Zeichen.
+            Liegt er höher, werden sinkende Gewinne erwartet.</td>
+      </tr>
+      <tr>
+        <td><strong>Dividend Yield</strong><br><small>Dividendenrendite</small></td>
+        <td>&gt; 2 % solide &nbsp;/&nbsp; &gt; 6 % prüfen</td>
+        <td>Jährliche Dividende in % des aktuellen Kurses.
+            Unternehmen, die auch in Krisen Dividende zahlen (oder erhöhen),
+            zeigen damit finanzielle Stärke und Selbstvertrauen des Managements.
+            Sehr hohe Renditen (&gt; 6–7 %) können aber eine Warnung sein,
+            dass der Markt eine Kürzung erwartet.</td>
+      </tr>
+      <tr>
+        <td><strong>Beta</strong></td>
+        <td>&lt; 1 stabil &nbsp;/&nbsp; &gt; 1,5 volatil</td>
+        <td>Misst, wie stark die Aktie im Vergleich zum Gesamtmarkt schwankt.
+            Beta = 1,0 bedeutet: bewegt sich genau wie der Markt.
+            Beta = 0,5 bedeutet: halb so volatil (z. B. Nestlé).
+            Beta = 2,0 bedeutet: doppelt so volatil (z. B. manche Tech-Aktien).
+            Bei Krisenrückgängen fallen hochvolatile Aktien oft überproportional —
+            aber erholen sich auch schneller.</td>
+      </tr>
+      <tr>
+        <td><strong>RSI (14d)</strong><br><small>Relative Strength Index</small></td>
+        <td>&lt; 30 überverkauft &nbsp;/&nbsp; &gt; 70 überkauft</td>
+        <td>Technischer Indikator (0–100), der zeigt ob eine Aktie kurzfristig
+            zu stark gefallen (überverkauft) oder gestiegen (überkauft) ist.
+            RSI unter 30 bedeutet: die Aktie wurde vermutlich emotional zu stark
+            abverkauft — statistisch folgt häufig eine Gegenbewegung nach oben.
+            Kein Garant, aber ein nützliches Zusatzsignal.</td>
+      </tr>
+      <tr>
+        <td><strong>Analyst View</strong></td>
+        <td>Buy / Strong Buy = positiv</td>
+        <td>Konsensus-Empfehlung aller Analysten, die diese Aktie abdecken
+            (aggregiert von Yahoo Finance). "Strong Buy" bedeutet, die Mehrheit
+            der Profis erwartet Kurssteigerungen. Wichtig: Analysten liegen oft
+            falsch und haben manchmal Interessenkonflikte — als ein Signal unter
+            mehreren verwenden, nicht allein.</td>
+      </tr>
+      <tr>
+        <td><strong>Sector ETF this week</strong></td>
+        <td>Sektor auch gefallen = Makro-Krise</td>
+        <td>Wochenperformance des zugehörigen Sektor-ETFs (z. B. XLK für Tech,
+            XLF für Finanzwerte). Wenn der gesamte Sektor ähnlich stark gefallen
+            ist, ist der Rückgang wahrscheinlich auf externe Faktoren zurückzuführen
+            (Zinsen, Zölle, Rezessionsangst) — nicht auf ein Problem im Unternehmen.
+            Das macht den Rückgang eher zu einer Kaufgelegenheit.
+            Wenn nur diese Aktie gefallen ist, aber der Sektor stabil war →
+            Unternehmens-spezifisches Problem → mehr Vorsicht geboten.</td>
+      </tr>
+      <tr>
+        <td><strong>52w High</strong></td>
+        <td>Je größer Abstand, desto günstiger relativ</td>
+        <td>Höchster Kurs der letzten 52 Wochen. Der prozentuale Abstand vom
+            Jahreshoch zeigt wie weit die Aktie bereits korrigiert hat.
+            –30 % vom Hoch bei einem Qualitätsunternehmen kann eine attraktive
+            Einstiegsgelegenheit sein — vorausgesetzt die Fundamentaldaten sind intakt.</td>
+      </tr>
+    </tbody>
+  </table>
+
   <p class="footer">
-    Prices &amp; fundamentals sourced from Yahoo Finance via yfinance.<br>
-    Score = ROE (20) + Low Debt (20) + Positive FCF (15) + Sector also fell (15)
-            + Analyst buy (10) + RSI oversold (10) + Dividend (5) + Low beta (5).<br>
-    <strong>This is not financial advice. Always do your own research.</strong>
+    Preise &amp; Fundamentaldaten von Yahoo Finance via yfinance.<br>
+    <strong>Dies ist keine Anlageberatung. Eigene Recherche ist unbedingt erforderlich.</strong>
   </p>
 </body>
 </html>"""
