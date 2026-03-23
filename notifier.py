@@ -102,6 +102,23 @@ def _trend_badge(t: TrendPrediction | None) -> str:
   </div>"""
 
 
+def _fmt_52w_range(a: StockAlert) -> str:
+    parts = []
+    if a.week_high_52:
+        pct_from_high = (a.price_now / a.week_high_52 - 1) * 100
+        parts.append(f"52w Hoch: {a.week_high_52:.2f} {a.currency} ({pct_from_high:+.1f}%)")
+    if a.week_low_52:
+        pct_from_low = (a.price_now / a.week_low_52 - 1) * 100
+        color = "#b71c1c" if pct_from_low < 8 else "#555"
+        parts.append(
+            f'<span style="color:{color}">52w Tief: {a.week_low_52:.2f} {a.currency} '
+            f"(+{pct_from_low:.1f}% darüber)</span>"
+        )
+    if not parts:
+        return ""
+    return f'<br><span style="color:#555;font-size:12px">{" &nbsp;|&nbsp; ".join(parts)}</span>'
+
+
 def _drop_color(pct: float) -> str:
     if pct <= -20: return "#b71c1c"
     if pct <= -15: return "#c62828"
@@ -182,7 +199,7 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
           <span style="color:#555;font-size:13px">
             &nbsp;{a.price_7d_ago:.2f} → {a.price_now:.2f} {a.currency}
           </span>
-          {f'<br><span style="color:#555;font-size:12px">52w High: {a.week_high_52:.2f} {a.currency} &nbsp;|&nbsp; {((a.price_now/a.week_high_52)-1)*100:+.1f}% from high</span>' if a.week_high_52 else ''}
+          {_fmt_52w_range(a)}
         </td>
         <td style="border:none;padding:0;vertical-align:top;text-align:right">
           <div style="font-size:28px;font-weight:bold;color:{bar_color}">{sc}/100</div>
@@ -405,6 +422,15 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
             –30 % vom Hoch bei einem Qualitätsunternehmen kann eine attraktive
             Einstiegsgelegenheit sein — vorausgesetzt die Fundamentaldaten sind intakt.</td>
       </tr>
+      <tr>
+        <td><strong>52w Tief</strong></td>
+        <td>&lt; 8% darüber = kritisch</td>
+        <td>Niedrigster Kurs der letzten 52 Wochen. Wichtig für die Trendprognose:
+            liegt der aktuelle Kurs nahe am Jahrestief (&lt; 8% darüber), testet
+            er eine kritische Unterstützungszone — fällt er darunter, ist das ein
+            starkes Warnsignal (kein Boden in Sicht). Je mehr Abstand nach oben,
+            desto mehr Puffer hat die Aktie noch vor einem neuen Jahrestief.</td>
+      </tr>
     </tbody>
   </table>
 
@@ -434,6 +460,18 @@ def _build_plain(alerts: list[StockAlert], threshold: float) -> str:
                      f"  |  FCF: {_fmt_fcf(a.free_cash_flow)}")
         lines.append(f"   P/E: {_fmt_float(a.trailing_pe)}  |  RSI: {_fmt_float(a.rsi,1)}"
                      f"  |  Analyst: {_fmt_rec(a.recommendation)}")
+        low_note = (
+            f"  |  52w Tief: {a.week_low_52:.2f} "
+            f"(+{(a.price_now/a.week_low_52-1)*100:.1f}% darüber)"
+            if a.week_low_52 else ""
+        )
+        high_note = (
+            f"52w Hoch: {a.week_high_52:.2f} "
+            f"({(a.price_now/a.week_high_52-1)*100:+.1f}%)"
+            if a.week_high_52 else ""
+        )
+        if high_note or low_note:
+            lines.append(f"   {high_note}{low_note}")
         lines.append(f"   Sector ({a.sector or '?'}): {_sector_context(a)}")
         if a.trend:
             lines.append(f"   Trend-Prognose: {a.trend.verdict}  (Konfidenz: {a.trend.confidence}%)")

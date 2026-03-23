@@ -66,6 +66,7 @@ class StockAlert:
 
     # ── Context ───────────────────────────────────────────────────────────
     week_high_52:     float | None = None
+    week_low_52:      float | None = None
     rsi:              float | None = None
     sector_drop_pct:  float | None = None
 
@@ -117,9 +118,9 @@ def _bollinger(closes, period: int = 20, n_std: float = 2.0):
 
 # ── Trend prediction ──────────────────────────────────────────────────────────
 
-def _trend_prediction(closes, volumes=None) -> TrendPrediction:
+def _trend_prediction(closes, volumes=None, week_low_52: float | None = None) -> TrendPrediction:
     """
-    Analyses 6 technical signals and returns a TrendPrediction.
+    Analyses 7 technical signals and returns a TrendPrediction.
     score > 0  → bullish (bottom likely)
     score < 0  → bearish (downtrend continues)
     """
@@ -262,6 +263,28 @@ def _trend_prediction(closes, volumes=None) -> TrendPrediction:
             score -= 10
             bear.append("Deutlich höheres Volumen an Abwärtstagen — anhaltender Verkaufsdruck")
 
+    # ── 7. 52-Wochen-Tief ─────────────────────────────────────────────────
+    if week_low_52 is not None and week_low_52 > 0:
+        dist_pct = (price_now - week_low_52) / week_low_52 * 100
+        if price_now <= week_low_52 * 1.01:
+            score -= 18
+            bear.append(
+                f"Kurs auf/unter 52-Wochen-Tief ({week_low_52:.2f}) — neues Jahrestief, "
+                f"kein Boden in Sicht"
+            )
+        elif dist_pct < 8:
+            score -= 8
+            bear.append(
+                f"Kurs nur {dist_pct:.0f}% über 52-Wochen-Tief ({week_low_52:.2f}) — "
+                f"Unterstützungszone wird getestet"
+            )
+        elif dist_pct > 30:
+            score += 8
+            bull.append(
+                f"Kurs {dist_pct:.0f}% über 52-Wochen-Tief ({week_low_52:.2f}) — "
+                f"noch deutlicher Puffer nach unten"
+            )
+
     # ── Verdict ───────────────────────────────────────────────────────────
     confidence = min(abs(score) * 2, 100)
     if score >= 30:
@@ -336,6 +359,7 @@ def _fetch_fundamentals(ticker: str) -> dict:
         "recommendation": get("recommendationKey"),
         "sector":         get("sector"),
         "week_high_52":   get("fiftyTwoWeekHigh"),
+        "week_low_52":    get("fiftyTwoWeekLow"),
     }
 
 
@@ -404,9 +428,19 @@ def _compute_score(a: StockAlert) -> int:
 
 def check_watchlist(watchlist: dict[str, str]) -> list[StockAlert]:
     _sector_cache.clear()
-    alerts: list[StockAlert] = []
+    alerts:  list[StockAlert] = []
+    failed:  list[str]        = []
+    total  = len(watchlist)
+    log_every = max(1, total // 10)   # log every ~10%
 
-    for ticker, company in watchlist.items():
+    logger.info("Starte Analyse von %d Stocks …", total)
+
+    for done, (ticker, company) in enumerate(watchlist.items(), start=1):
+        if done % log_every == 0 or done == total:
+            logger.info(
+                "%d/%d Stocks geprüft (%.0f%%) — %d Alert(s) bisher",
+                done, total, done / total * 100, len(alerts),
+            )
         try:
             price_7d_ago, price_now, currency, closes, volumes = _weekly_change(ticker)
             drop_pct = (price_now - price_7d_ago) / price_7d_ago * 100
@@ -416,7 +450,7 @@ def check_watchlist(watchlist: dict[str, str]) -> list[StockAlert]:
 
             fund  = _fetch_fundamentals(ticker)
             rsi   = _rsi(closes)
-            trend = _trend_prediction(closes, volumes)
+            trend = _trend_prediction(closes, volumes, week_low_52=fund.get("week_low_52"))
 
             alert = StockAlert(
                 ticker       = ticker,
@@ -435,8 +469,15 @@ def check_watchlist(watchlist: dict[str, str]) -> list[StockAlert]:
 
             alerts.append(alert)
 
-        except Exception:
-            pass
+        except Exception as exc:
+            failed.append(ticker)
+            logger.debug("Fehler bei %s (%s): %s", ticker, company, exc)
+
+    logger.info(
+        "Analyse abgeschlossen: %d/%d Stocks geprüft — %d Alert(s), %d Fehler%s",
+        total - len(failed), total, len(alerts), len(failed),
+        f" ({', '.join(failed[:5])}{'…' if len(failed) > 5 else ''})" if failed else "",
+    )
 
     alerts.sort(key=lambda a: a.drop_pct)
     return alerts
