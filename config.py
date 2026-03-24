@@ -1482,7 +1482,9 @@ def _fetch_sp_index(url: str, label: str) -> dict[str, str]:
 
 
 def _load_cache() -> dict[str, str] | None:
-    """Return cached watchlist if it exists and is fresh, else None."""
+    """Return cached watchlist if it exists, is fresh, and is at least as large
+    as the current hardcoded lists (guards against stale caches from older code)."""
+    _hardcoded_min = len(_SP500_HARDCODED) + len(_INTERNATIONAL) + len(_US_BLUE_CHIPS) - 200
     try:
         if not _CACHE_FILE.exists():
             return None
@@ -1491,12 +1493,20 @@ def _load_cache() -> dict[str, str] | None:
         if datetime.utcnow() - cached_at > _CACHE_MAX_AGE:
             logger.info("Watchlist cache is stale; will refresh.")
             return None
+        cached = data["watchlist"]
+        if len(cached) < _hardcoded_min:
+            logger.info(
+                "Watchlist cache has only %d tickers (min expected: %d) — "
+                "rebuilding with updated hardcoded lists.",
+                len(cached), _hardcoded_min,
+            )
+            return None
         logger.info(
             "Loaded %d tickers from cache (age: %s).",
-            len(data["watchlist"]),
+            len(cached),
             datetime.utcnow() - cached_at,
         )
-        return data["watchlist"]
+        return cached
     except Exception as exc:
         logger.warning("Could not read watchlist cache: %s", exc)
         return None
