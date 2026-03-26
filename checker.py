@@ -408,10 +408,12 @@ def _enrich_news(
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
+        logger.info("ANTHROPIC_API_KEY nicht gesetzt — News-Einordnung übersprungen")
         return raw_headlines, None
 
     try:
         import anthropic  # lazy import — optional dependency
+        logger.debug("News-Anreicherung für %s gestartet …", company)
 
         headlines_block = "\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines))
         prompt = (
@@ -445,8 +447,13 @@ def _enrich_news(
         reason = data.get("grund")
         return headlines_de, reason
 
+    except ModuleNotFoundError:
+        logger.warning(
+            "Paket 'anthropic' nicht installiert — bitte 'pip install anthropic' ausführen"
+        )
+        return raw_headlines, None
     except Exception as exc:
-        logger.debug("News-Anreicherung fehlgeschlagen: %s", exc)
+        logger.warning("News-Anreicherung fehlgeschlagen (%s): %s", type(exc).__name__, exc)
         return raw_headlines, None
 
 
