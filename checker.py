@@ -77,6 +77,9 @@ class StockAlert:
     # ── Trend prediction ──────────────────────────────────────────────────
     trend: TrendPrediction | None = None
 
+    # ── News / Mögliche Gründe ────────────────────────────────────────────
+    news_headlines: list[str] = field(default_factory=list)
+
     def __str__(self) -> str:
         verdict = self.trend.verdict if self.trend else "?"
         return (
@@ -363,6 +366,29 @@ def _fetch_fundamentals(ticker: str) -> dict:
     }
 
 
+def _fetch_news(ticker: str, max_items: int = 4) -> list[str]:
+    """
+    Fetches recent news headlines for a ticker via yfinance.
+    Returns a list of headline strings (title + source), newest first.
+    """
+    try:
+        raw = yf.Ticker(ticker).news or []
+        headlines = []
+        for item in raw[:max_items]:
+            # yfinance ≥0.2.x nests content; older versions use flat dict
+            content = item.get("content", item)
+            title = content.get("title") or item.get("title", "")
+            source = (
+                (content.get("provider") or {}).get("displayName")
+                or item.get("publisher", "")
+            )
+            if title:
+                headlines.append(f"{title}{f'  ({source})' if source else ''}")
+        return headlines
+    except Exception:
+        return []
+
+
 def _sector_weekly_change(sector: str | None) -> float | None:
     if sector is None:
         return None
@@ -466,6 +492,7 @@ def check_watchlist(watchlist: dict[str, str]) -> list[StockAlert]:
             alert.sector_drop_pct  = _sector_weekly_change(alert.sector)
             alert.score            = _compute_score(alert)
             alert.is_buy_candidate = alert.score >= 50
+            alert.news_headlines   = _fetch_news(ticker)
 
             alerts.append(alert)
 

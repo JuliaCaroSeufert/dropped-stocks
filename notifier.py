@@ -102,6 +102,23 @@ def _trend_badge(t: TrendPrediction | None) -> str:
   </div>"""
 
 
+def _news_block(headlines: list[str]) -> str:
+    if not headlines:
+        return ""
+    items = "".join(
+        f"<li style='margin:4px 0;color:#333'>{h}</li>"
+        for h in headlines
+    )
+    return (
+        f'<div style="margin-top:12px;padding:10px 14px;background:#f9f9f9;'
+        f'border-left:3px solid #1565c0;border-radius:3px">'
+        f'<div style="font-weight:bold;font-size:13px;color:#1565c0;margin-bottom:6px">'
+        f'Aktuelle Nachrichten — mögliche Gründe für den Kursrückgang</div>'
+        f'<ul style="margin:0;padding-left:18px;font-size:12.5px">{items}</ul>'
+        f'</div>'
+    )
+
+
 def _fmt_52w_range(a: StockAlert) -> str:
     parts = []
     if a.week_high_52:
@@ -256,6 +273,7 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
       </tr>
     </table>
     {_trend_badge(a.trend)}
+    {_news_block(a.news_headlines)}
   </div>"""
 
     return f"""<!DOCTYPE html>
@@ -479,6 +497,10 @@ def _build_plain(alerts: list[StockAlert], threshold: float) -> str:
                 lines.append(f"     ✓ {s}")
             for s in a.trend.bear_signals:
                 lines.append(f"     ✗ {s}")
+        if a.news_headlines:
+            lines.append("   Aktuelle Nachrichten:")
+            for h in a.news_headlines:
+                lines.append(f"     • {h}")
         lines.append("")
     lines.append("Prices from Yahoo Finance. Not financial advice.")
     return "\n".join(lines)
