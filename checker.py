@@ -4,7 +4,9 @@ and enriches each alert with quality metrics, a buy-candidate score,
 and a technical trend prediction (bottom reached vs. downtrend continues).
 """
 
+import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -459,16 +461,72 @@ def _translate_headlines(headlines: list[str]) -> list[str]:
         return headlines
 
 
+def _enrich_with_gemini(
+    raw_headlines: list[str],
+    company: str,
+    drop_pct: float,
+    api_key: str,
+) -> tuple[list[str], str | None]:
+    """Calls Gemini Flash (free tier) for translation + nuanced reason analysis."""
+    try:
+        import google.generativeai as genai  # pip install google-generativeai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+
+        headlines_block = "\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines))
+        prompt = (
+            f"Die Aktie {company} ist diese Woche um {abs(drop_pct):.1f}% gefallen.\n\n"
+            f"Aktuelle Schlagzeilen (Englisch):\n{headlines_block}\n\n"
+            "Aufgaben:\n"
+            "1. Übersetze jede Schlagzeile präzise ins Deutsche. "
+            "Quellangaben in Klammern beibehalten.\n"
+            "2. Schreibe EINEN prägnanten deutschen Satz der den wahrscheinlichsten "
+            "Grund für den Kursrückgang einordnet. Sei konkret — nenne den Auslöser "
+            "(z.B. enttäuschende Quartalszahlen, Analystensenkung, Zollsorgen, "
+            "Regulierungsdruck, Gewinnmitnahmen nach Allzeithoch usw.). "
+            "Beginne mit 'Wahrscheinlicher Grund:'.\n\n"
+            "Antworte NUR als JSON, kein Markdown:\n"
+            '{"grund": "...", "schlagzeilen": ["...", ...]}'
+        )
+
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+        if text.startswith("```"):
+            text = text.split("```")[1].lstrip("json").strip()
+        data = json.loads(text)
+        return data.get("schlagzeilen", raw_headlines), data.get("grund")
+
+    except ModuleNotFoundError:
+        logger.warning("Paket 'google-generativeai' fehlt — bitte 'pip install google-generativeai' ausführen")
+        return None, None
+    except Exception as exc:
+        logger.warning("Gemini-Anreicherung fehlgeschlagen (%s): %s", type(exc).__name__, exc)
+        return None, None
+
+
 def _enrich_news(
     raw_headlines: list[str],
     company: str,
     drop_pct: float,
 ) -> tuple[list[str], str | None]:
-    """Translates headlines to German and classifies the probable drop reason."""
+    """
+    Translates headlines to German and generates a reason for the stock drop.
+    Priority:
+      1. Gemini Flash (free, needs GEMINI_API_KEY from aistudio.google.com)
+      2. Keyword classification + deep-translator (no key needed, offline-capable)
+    """
     if not raw_headlines:
         return [], None
+
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        headlines_de, reason = _enrich_with_gemini(raw_headlines, company, drop_pct, gemini_key)
+        if headlines_de is not None:
+            return headlines_de, reason
+        # fall through to offline fallback on error
+
     headlines_de = _translate_headlines(raw_headlines)
-    reason = _classify_reason(raw_headlines)   # classify on English for reliability
+    reason = _classify_reason(raw_headlines)
     return headlines_de, reason
 
 
