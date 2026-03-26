@@ -461,64 +461,76 @@ def _translate_headlines(headlines: list[str]) -> list[str]:
         return headlines
 
 
-import time as _time  # avoid shadowing datetime.timedelta
+import time as _time
 
 
-_gemini_model = None  # module-level singleton so genai is configured only once
+_LLM_PROMPT = (
+    "Die Aktie {company} ist diese Woche um {pct:.1f}% gefallen.\n\n"
+    "Aktuelle Schlagzeilen (Englisch):\n{headlines}\n\n"
+    "Aufgaben:\n"
+    "1. Übersetze jede Schlagzeile präzise ins Deutsche. "
+    "Quellangaben in Klammern beibehalten.\n"
+    "2. Schreibe EINEN prägnanten deutschen Satz der den wahrscheinlichsten "
+    "Grund für den Kursrückgang einordnet. Sei konkret — nenne den Auslöser "
+    "(z.B. enttäuschende Quartalszahlen, Analystensenkung, Zollsorgen, "
+    "Regulierungsdruck, Gewinnmitnahmen nach Allzeithoch usw.). "
+    "Beginne mit 'Wahrscheinlicher Grund:'.\n\n"
+    "Antworte NUR als JSON, kein Markdown:\n"
+    '{{"grund": "...", "schlagzeilen": ["...", ...]}}'
+)
+
+
+def _parse_llm_json(text: str, raw_headlines: list[str]) -> tuple[list[str], str | None]:
+    if text.startswith("```"):
+        text = text.split("```")[1].lstrip("json").strip()
+    data = json.loads(text)
+    return data.get("schlagzeilen", raw_headlines), data.get("grund")
+
+
+def _enrich_with_groq(
+    raw_headlines: list[str], company: str, drop_pct: float, api_key: str,
+) -> tuple[list[str], str | None]:
+    """Groq free tier: ~14 400 req/day, no credit card. groq.com → API Keys."""
+    try:
+        from groq import Groq  # pip install groq
+        client = Groq(api_key=api_key)
+        prompt = _LLM_PROMPT.format(
+            company=company, pct=abs(drop_pct),
+            headlines="\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines)),
+        )
+        resp = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500,
+        )
+        return _parse_llm_json(resp.choices[0].message.content.strip(), raw_headlines)
+    except ModuleNotFoundError:
+        logger.warning("Paket 'groq' fehlt — bitte 'pip install groq' ausführen")
+        return None, None
+    except Exception as exc:
+        logger.warning("Groq-Anreicherung fehlgeschlagen (%s): %s", type(exc).__name__, exc)
+        return None, None
+
+
+_gemini_model = None
 
 
 def _enrich_with_gemini(
-    raw_headlines: list[str],
-    company: str,
-    drop_pct: float,
-    api_key: str,
+    raw_headlines: list[str], company: str, drop_pct: float, api_key: str,
 ) -> tuple[list[str], str | None]:
-    """Calls Gemini Flash Lite (free tier) for translation + reason analysis.
-    Retries once on rate-limit with the suggested delay; falls back to None on failure."""
+    """Gemini free tier (flash-lite): ~1 500 req/day. aistudio.google.com/apikey."""
     global _gemini_model
     try:
         import google.generativeai as genai  # pip install google-generativeai
         if _gemini_model is None:
             genai.configure(api_key=api_key)
             _gemini_model = genai.GenerativeModel("gemini-2.0-flash-lite")
-
-        headlines_block = "\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines))
-        prompt = (
-            f"Die Aktie {company} ist diese Woche um {abs(drop_pct):.1f}% gefallen.\n\n"
-            f"Aktuelle Schlagzeilen (Englisch):\n{headlines_block}\n\n"
-            "Aufgaben:\n"
-            "1. Übersetze jede Schlagzeile präzise ins Deutsche. "
-            "Quellangaben in Klammern beibehalten.\n"
-            "2. Schreibe EINEN prägnanten deutschen Satz der den wahrscheinlichsten "
-            "Grund für den Kursrückgang einordnet. Sei konkret — nenne den Auslöser "
-            "(z.B. enttäuschende Quartalszahlen, Analystensenkung, Zollsorgen, "
-            "Regulierungsdruck, Gewinnmitnahmen nach Allzeithoch usw.). "
-            "Beginne mit 'Wahrscheinlicher Grund:'.\n\n"
-            "Antworte NUR als JSON, kein Markdown:\n"
-            '{"grund": "...", "schlagzeilen": ["...", ...]}'
+        prompt = _LLM_PROMPT.format(
+            company=company, pct=abs(drop_pct),
+            headlines="\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines)),
         )
-
-        for attempt in range(2):
-            try:
-                response = _gemini_model.generate_content(prompt)
-                text = response.text.strip()
-                if text.startswith("```"):
-                    text = text.split("```")[1].lstrip("json").strip()
-                data = json.loads(text)
-                return data.get("schlagzeilen", raw_headlines), data.get("grund")
-            except Exception as exc:
-                # On rate-limit, extract suggested retry delay and wait once
-                if "ResourceExhausted" in type(exc).__name__ or "429" in str(exc):
-                    if attempt == 0:
-                        import re
-                        m = re.search(r"retry_delay\s*\{\s*seconds:\s*(\d+)", str(exc))
-                        wait = int(m.group(1)) + 2 if m else 30
-                        logger.info("Gemini rate-limit — warte %ds …", wait)
-                        _time.sleep(wait)
-                        continue
-                raise
-        return None, None
-
+        response = _gemini_model.generate_content(prompt)
+        return _parse_llm_json(response.text.strip(), raw_headlines)
     except ModuleNotFoundError:
         logger.warning("Paket 'google-generativeai' fehlt — bitte 'pip install google-generativeai' ausführen")
         return None, None
@@ -533,24 +545,27 @@ def _enrich_news(
     drop_pct: float,
 ) -> tuple[list[str], str | None]:
     """
-    Translates headlines to German and generates a reason for the stock drop.
-    Priority:
-      1. Gemini Flash (free, needs GEMINI_API_KEY from aistudio.google.com)
-      2. Keyword classification + deep-translator (no key needed, offline-capable)
+    Übersetzt Schlagzeilen ins Deutsche und ordnet den Kursrückgang ein.
+    Reihenfolge:
+      1. Groq  (GROQ_API_KEY)   — kostenlos, groq.com
+      2. Gemini (GEMINI_API_KEY) — kostenlos, aistudio.google.com/apikey
+      3. Keyword-Matching + deep-translator — kein Key nötig
     """
     if not raw_headlines:
         return [], None
 
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if gemini_key:
-        headlines_de, reason = _enrich_with_gemini(raw_headlines, company, drop_pct, gemini_key)
-        if headlines_de is not None:
-            return headlines_de, reason
-        # fall through to offline fallback on error
+    for env_var, fn in [
+        ("GROQ_API_KEY",   _enrich_with_groq),
+        ("GEMINI_API_KEY", _enrich_with_gemini),
+    ]:
+        key = os.getenv(env_var)
+        if key:
+            headlines_de, reason = fn(raw_headlines, company, drop_pct, key)
+            if headlines_de is not None:
+                return headlines_de, reason
 
-    headlines_de = _translate_headlines(raw_headlines)
-    reason = _classify_reason(raw_headlines)
-    return headlines_de, reason
+    # Offline fallback
+    return _translate_headlines(raw_headlines), _classify_reason(raw_headlines)
 
 
 def _sector_weekly_change(sector: str | None) -> float | None:
