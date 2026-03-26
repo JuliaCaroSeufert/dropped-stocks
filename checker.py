@@ -461,17 +461,26 @@ def _translate_headlines(headlines: list[str]) -> list[str]:
         return headlines
 
 
+import time as _time  # avoid shadowing datetime.timedelta
+
+
+_gemini_model = None  # module-level singleton so genai is configured only once
+
+
 def _enrich_with_gemini(
     raw_headlines: list[str],
     company: str,
     drop_pct: float,
     api_key: str,
 ) -> tuple[list[str], str | None]:
-    """Calls Gemini Flash (free tier) for translation + nuanced reason analysis."""
+    """Calls Gemini Flash Lite (free tier) for translation + reason analysis.
+    Retries once on rate-limit with the suggested delay; falls back to None on failure."""
+    global _gemini_model
     try:
         import google.generativeai as genai  # pip install google-generativeai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        if _gemini_model is None:
+            genai.configure(api_key=api_key)
+            _gemini_model = genai.GenerativeModel("gemini-2.0-flash-lite")
 
         headlines_block = "\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines))
         prompt = (
@@ -489,12 +498,26 @@ def _enrich_with_gemini(
             '{"grund": "...", "schlagzeilen": ["...", ...]}'
         )
 
-        response = model.generate_content(prompt)
-        text = response.text.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1].lstrip("json").strip()
-        data = json.loads(text)
-        return data.get("schlagzeilen", raw_headlines), data.get("grund")
+        for attempt in range(2):
+            try:
+                response = _gemini_model.generate_content(prompt)
+                text = response.text.strip()
+                if text.startswith("```"):
+                    text = text.split("```")[1].lstrip("json").strip()
+                data = json.loads(text)
+                return data.get("schlagzeilen", raw_headlines), data.get("grund")
+            except Exception as exc:
+                # On rate-limit, extract suggested retry delay and wait once
+                if "ResourceExhausted" in type(exc).__name__ or "429" in str(exc):
+                    if attempt == 0:
+                        import re
+                        m = re.search(r"retry_delay\s*\{\s*seconds:\s*(\d+)", str(exc))
+                        wait = int(m.group(1)) + 2 if m else 30
+                        logger.info("Gemini rate-limit — warte %ds …", wait)
+                        _time.sleep(wait)
+                        continue
+                raise
+        return None, None
 
     except ModuleNotFoundError:
         logger.warning("Paket 'google-generativeai' fehlt — bitte 'pip install google-generativeai' ausführen")
