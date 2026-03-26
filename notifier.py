@@ -102,19 +102,33 @@ def _trend_badge(t: TrendPrediction | None) -> str:
   </div>"""
 
 
-def _news_block(headlines: list[str]) -> str:
-    if not headlines:
+def _news_block(headlines: list[str], reason: str | None = None) -> str:
+    if not headlines and not reason:
         return ""
-    items = "".join(
-        f"<li style='margin:4px 0;color:#333'>{h}</li>"
-        for h in headlines
-    )
+    reason_html = ""
+    if reason:
+        reason_html = (
+            f'<div style="font-size:13.5px;font-weight:bold;color:#1a237e;'
+            f'background:#e8eaf6;padding:8px 12px;border-radius:3px;margin-bottom:10px">'
+            f'{reason}</div>'
+        )
+    items_html = ""
+    if headlines:
+        items = "".join(
+            f"<li style='margin:4px 0;color:#444'>{h}</li>"
+            for h in headlines
+        )
+        items_html = (
+            f'<div style="font-size:11.5px;color:#666;margin-bottom:4px">'
+            f'Aktuelle Schlagzeilen:</div>'
+            f'<ul style="margin:0;padding-left:18px;font-size:12.5px">{items}</ul>'
+        )
     return (
         f'<div style="margin-top:12px;padding:10px 14px;background:#f9f9f9;'
-        f'border-left:3px solid #1565c0;border-radius:3px">'
-        f'<div style="font-weight:bold;font-size:13px;color:#1565c0;margin-bottom:6px">'
-        f'Aktuelle Nachrichten — mögliche Gründe für den Kursrückgang</div>'
-        f'<ul style="margin:0;padding-left:18px;font-size:12.5px">{items}</ul>'
+        f'border-left:3px solid #3949ab;border-radius:3px">'
+        f'<div style="font-weight:bold;font-size:12px;color:#3949ab;margin-bottom:8px;'
+        f'text-transform:uppercase;letter-spacing:0.5px">Warum ist die Aktie gefallen?</div>'
+        f'{reason_html}{items_html}'
         f'</div>'
     )
 
@@ -273,7 +287,7 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
       </tr>
     </table>
     {_trend_badge(a.trend)}
-    {_news_block(a.news_headlines)}
+    {_news_block(a.news_headlines, a.news_reason)}
   </div>"""
 
     return f"""<!DOCTYPE html>
@@ -497,8 +511,10 @@ def _build_plain(alerts: list[StockAlert], threshold: float) -> str:
                 lines.append(f"     ✓ {s}")
             for s in a.trend.bear_signals:
                 lines.append(f"     ✗ {s}")
+        if a.news_reason:
+            lines.append(f"   {a.news_reason}")
         if a.news_headlines:
-            lines.append("   Aktuelle Nachrichten:")
+            lines.append("   Aktuelle Schlagzeilen:")
             for h in a.news_headlines:
                 lines.append(f"     • {h}")
         lines.append("")

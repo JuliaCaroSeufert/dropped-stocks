@@ -4,7 +4,9 @@ and enriches each alert with quality metrics, a buy-candidate score,
 and a technical trend prediction (bottom reached vs. downtrend continues).
 """
 
+import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -78,7 +80,8 @@ class StockAlert:
     trend: TrendPrediction | None = None
 
     # ── News / Mögliche Gründe ────────────────────────────────────────────
-    news_headlines: list[str] = field(default_factory=list)
+    news_headlines: list[str] = field(default_factory=list)  # deutsche Schlagzeilen
+    news_reason:    str | None = None                         # ein-Satz-Einordnung
 
     def __str__(self) -> str:
         verdict = self.trend.verdict if self.trend else "?"
@@ -389,6 +392,64 @@ def _fetch_news(ticker: str, max_items: int = 4) -> list[str]:
         return []
 
 
+def _enrich_news(
+    raw_headlines: list[str],
+    company: str,
+    drop_pct: float,
+) -> tuple[list[str], str | None]:
+    """
+    Translates headlines to German and generates a one-sentence reason using
+    Claude Haiku via the Anthropic API.
+    Requires ANTHROPIC_API_KEY in the environment.
+    Falls back gracefully (returns originals + None) if unavailable.
+    """
+    if not raw_headlines:
+        return [], None
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return raw_headlines, None
+
+    try:
+        import anthropic  # lazy import — optional dependency
+
+        headlines_block = "\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines))
+        prompt = (
+            f"Die Aktie {company} ist in der letzten Woche um {abs(drop_pct):.1f}% gefallen.\n\n"
+            f"Aktuelle Schlagzeilen (Englisch):\n{headlines_block}\n\n"
+            "Aufgaben:\n"
+            "1. Übersetze jede Schlagzeile präzise ins Deutsche. "
+            "Behalte Quellennamen in Klammern bei.\n"
+            "2. Schreibe EINEN deutschen Satz, der einordnet warum die Aktie "
+            "wahrscheinlich gefallen ist. Sei konkret (z.B. Gewinnwarnung, "
+            "Analystensenkung, Makrodruck, Branchenrotation, Regulierung). "
+            "Beginne mit 'Wahrscheinlicher Grund:'.\n\n"
+            "Antworte ausschließlich als JSON:\n"
+            '{"grund": "...", "schlagzeilen": ["...", ...]}'
+        )
+
+        client = anthropic.Anthropic(api_key=api_key)
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = msg.content[0].text.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        data = json.loads(text)
+        headlines_de = data.get("schlagzeilen", raw_headlines)
+        reason = data.get("grund")
+        return headlines_de, reason
+
+    except Exception as exc:
+        logger.debug("News-Anreicherung fehlgeschlagen: %s", exc)
+        return raw_headlines, None
+
+
 def _sector_weekly_change(sector: str | None) -> float | None:
     if sector is None:
         return None
@@ -492,7 +553,10 @@ def check_watchlist(watchlist: dict[str, str]) -> list[StockAlert]:
             alert.sector_drop_pct  = _sector_weekly_change(alert.sector)
             alert.score            = _compute_score(alert)
             alert.is_buy_candidate = alert.score >= 50
-            alert.news_headlines   = _fetch_news(ticker)
+            raw_news = _fetch_news(ticker)
+            headlines_de, reason = _enrich_news(raw_news, company, drop_pct)
+            alert.news_headlines = headlines_de
+            alert.news_reason    = reason
 
             alerts.append(alert)
 
