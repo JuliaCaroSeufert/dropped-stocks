@@ -33,8 +33,6 @@ Environment / .env variables
   EMAIL_SENDER     From address             (defaults to SMTP_USER)
   EMAIL_RECIPIENTS Comma-separated list of recipient addresses
   USE_TLS          true / false             (default: true)
-  ANTHROPIC_API_KEY  API key for Claude Haiku (optional — enables German news
-                     translation + AI-generated reason per stock drop)
 """
 
 import argparse

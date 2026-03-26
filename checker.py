@@ -4,9 +4,7 @@ and enriches each alert with quality metrics, a buy-candidate score,
 and a technical trend prediction (bottom reached vs. downtrend continues).
 """
 
-import json
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -392,69 +390,86 @@ def _fetch_news(ticker: str, max_items: int = 4) -> list[str]:
         return []
 
 
+# ── Keyword-based reason classification ───────────────────────────────────────
+
+_REASON_RULES: list[tuple[str, list[str]]] = [
+    ("Gewinnwarnung / schwache Quartalszahlen",
+     ["earnings", "profit", "revenue", "miss", "guidance", "forecast",
+      "quarterly", "results", "eps", "beat", "below expectations"]),
+    ("Analystensenkung / Kurszielreduktion",
+     ["downgrade", "cut", "lower", "price target", "underperform",
+      "sell rating", "analyst", "rating"]),
+    ("Handelspolitik / Zölle / Makrodruck",
+     ["tariff", "trade war", "trade deal", "inflation", "interest rate",
+      "fed ", "recession", "gdp", "sanctions", "geopolit"]),
+    ("Regulierungsrisiko / Rechtliche Probleme",
+     ["lawsuit", "regulation", "sec ", "ftc ", "doj ", "antitrust",
+      "fine", "penalty", "investigation", "probe", "settlement"]),
+    ("Wettbewerbsdruck / Marktanteilsverlust",
+     ["competition", "market share", "competitor", "rival", "losing ground",
+      "disruption"]),
+    ("Führungswechsel / Restrukturierung",
+     ["ceo", "resign", "executive", "departure", "cfo", "restructur",
+      "layoff", "job cut", "workforce"]),
+    ("China-Risiko / Geopolitik",
+     ["china", "beijing", "taiwan", "hong kong", "export control",
+      "decoupling"]),
+    ("Übernahme / Fusion / M&A",
+     ["acquisition", "merger", "deal", "acquire", "takeover", "buyout", "bid"]),
+    ("Produktrückruf / Sicherheitsbedenken",
+     ["recall", "safety", "defect", "ban", "hazard", "fda "]),
+    ("Breiter Marktdruck / Sektorrotation",
+     ["market sell", "selloff", "sector", "rotation", "broader market",
+      "risk-off", "volatility"]),
+]
+
+
+def _classify_reason(headlines: list[str]) -> str | None:
+    """Scores headlines against keyword rules; returns the top match or None."""
+    text = " ".join(headlines).lower()
+    best_label, best_score = None, 0
+    for label, keywords in _REASON_RULES:
+        score = sum(1 for kw in keywords if kw in text)
+        if score > best_score:
+            best_score, best_label = score, label
+    if best_label:
+        return f"Wahrscheinlicher Grund: {best_label}"
+    return None
+
+
+def _translate_headlines(headlines: list[str]) -> list[str]:
+    """Translates headlines to German via Google Translate (no API key needed)."""
+    try:
+        from deep_translator import GoogleTranslator  # lazy import
+        translator = GoogleTranslator(source="auto", target="de")
+        translated = []
+        for h in headlines:
+            # Preserve source attribution in parentheses
+            if "  (" in h:
+                text, source = h.rsplit("  (", 1)
+                translated.append(f"{translator.translate(text)}  ({source}")
+            else:
+                translated.append(translator.translate(h))
+        return translated
+    except ModuleNotFoundError:
+        logger.warning("Paket 'deep-translator' fehlt — bitte 'pip install deep-translator' ausführen")
+        return headlines
+    except Exception as exc:
+        logger.warning("Übersetzung fehlgeschlagen (%s): %s", type(exc).__name__, exc)
+        return headlines
+
+
 def _enrich_news(
     raw_headlines: list[str],
     company: str,
     drop_pct: float,
 ) -> tuple[list[str], str | None]:
-    """
-    Translates headlines to German and generates a one-sentence reason using
-    Claude Haiku via the Anthropic API.
-    Requires ANTHROPIC_API_KEY in the environment.
-    Falls back gracefully (returns originals + None) if unavailable.
-    """
+    """Translates headlines to German and classifies the probable drop reason."""
     if not raw_headlines:
         return [], None
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        logger.info("ANTHROPIC_API_KEY nicht gesetzt — News-Einordnung übersprungen")
-        return raw_headlines, None
-
-    try:
-        import anthropic  # lazy import — optional dependency
-        logger.debug("News-Anreicherung für %s gestartet …", company)
-
-        headlines_block = "\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines))
-        prompt = (
-            f"Die Aktie {company} ist in der letzten Woche um {abs(drop_pct):.1f}% gefallen.\n\n"
-            f"Aktuelle Schlagzeilen (Englisch):\n{headlines_block}\n\n"
-            "Aufgaben:\n"
-            "1. Übersetze jede Schlagzeile präzise ins Deutsche. "
-            "Behalte Quellennamen in Klammern bei.\n"
-            "2. Schreibe EINEN deutschen Satz, der einordnet warum die Aktie "
-            "wahrscheinlich gefallen ist. Sei konkret (z.B. Gewinnwarnung, "
-            "Analystensenkung, Makrodruck, Branchenrotation, Regulierung). "
-            "Beginne mit 'Wahrscheinlicher Grund:'.\n\n"
-            "Antworte ausschließlich als JSON:\n"
-            '{"grund": "...", "schlagzeilen": ["...", ...]}'
-        )
-
-        client = anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=400,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = msg.content[0].text.strip()
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        data = json.loads(text)
-        headlines_de = data.get("schlagzeilen", raw_headlines)
-        reason = data.get("grund")
-        return headlines_de, reason
-
-    except ModuleNotFoundError:
-        logger.warning(
-            "Paket 'anthropic' nicht installiert — bitte 'pip install anthropic' ausführen"
-        )
-        return raw_headlines, None
-    except Exception as exc:
-        logger.warning("News-Anreicherung fehlgeschlagen (%s): %s", type(exc).__name__, exc)
-        return raw_headlines, None
+    headlines_de = _translate_headlines(raw_headlines)
+    reason = _classify_reason(raw_headlines)   # classify on English for reliability
+    return headlines_de, reason
 
 
 def _sector_weekly_change(sector: str | None) -> float | None:
