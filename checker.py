@@ -81,6 +81,7 @@ class StockAlert:
 
     # ── News / Mögliche Gründe ────────────────────────────────────────────
     news_headlines: list[str] = field(default_factory=list)  # deutsche Schlagzeilen
+    news_urls:      list[str] = field(default_factory=list)  # zugehörige URLs
     news_reason:    str | None = None                         # ein-Satz-Einordnung
 
     def __str__(self) -> str:
@@ -369,27 +370,32 @@ def _fetch_fundamentals(ticker: str) -> dict:
     }
 
 
-def _fetch_news(ticker: str, max_items: int = 4) -> list[str]:
+def _fetch_news(ticker: str, max_items: int = 4) -> tuple[list[str], list[str]]:
     """
-    Fetches recent news headlines for a ticker via yfinance.
-    Returns a list of headline strings (title + source), newest first.
+    Fetches recent news for a ticker via yfinance.
+    Returns (headlines, urls) — parallel lists, both same length.
     """
     try:
         raw = yf.Ticker(ticker).news or []
-        headlines = []
+        headlines, urls = [], []
         for item in raw[:max_items]:
-            # yfinance ≥0.2.x nests content; older versions use flat dict
             content = item.get("content", item)
             title = content.get("title") or item.get("title", "")
             source = (
                 (content.get("provider") or {}).get("displayName")
                 or item.get("publisher", "")
             )
+            url = (
+                (content.get("canonicalUrl") or {}).get("url")
+                or content.get("url")
+                or item.get("link", "")
+            )
             if title:
                 headlines.append(f"{title}{f'  ({source})' if source else ''}")
-        return headlines
+                urls.append(url or "")
+        return headlines, urls
     except Exception:
-        return []
+        return [], []
 
 
 # ── Keyword-based reason classification ───────────────────────────────────────
@@ -671,9 +677,10 @@ def check_watchlist(watchlist: dict[str, str]) -> list[StockAlert]:
             alert.sector_drop_pct  = _sector_weekly_change(alert.sector)
             alert.score            = _compute_score(alert)
             alert.is_buy_candidate = alert.score >= 50
-            raw_news = _fetch_news(ticker)
+            raw_news, news_urls = _fetch_news(ticker)
             headlines_de, reason = _enrich_news(raw_news, company, drop_pct)
             alert.news_headlines = headlines_de
+            alert.news_urls      = news_urls
             alert.news_reason    = reason
 
             alerts.append(alert)

@@ -326,7 +326,11 @@ def _interpret_fundamentals(a: StockAlert) -> str:
     )
 
 
-def _news_block(headlines: list[str], reason: str | None = None) -> str:
+def _news_block(
+    headlines: list[str],
+    reason: str | None = None,
+    urls: list[str] | None = None,
+) -> str:
     if not headlines and not reason:
         return ""
     reason_html = ""
@@ -338,10 +342,17 @@ def _news_block(headlines: list[str], reason: str | None = None) -> str:
         )
     items_html = ""
     if headlines:
-        items = "".join(
-            f"<li style='margin:4px 0;color:#444'>{h}</li>"
-            for h in headlines
-        )
+        items = ""
+        for i, h in enumerate(headlines):
+            url = (urls or [])[i] if urls and i < len(urls) else ""
+            if url:
+                items += (
+                    f"<li style='margin:5px 0'>"
+                    f"<a href='{url}' style='color:#1565c0;text-decoration:none' "
+                    f"target='_blank'>{h}</a></li>"
+                )
+            else:
+                items += f"<li style='margin:5px 0;color:#444'>{h}</li>"
         items_html = (
             f'<div style="font-size:11.5px;color:#666;margin-bottom:4px">'
             f'Aktuelle Schlagzeilen:</div>'
@@ -512,7 +523,7 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
     </table>
     {_interpret_fundamentals(a)}
     {_trend_badge(a.trend)}
-    {_news_block(a.news_headlines, a.news_reason)}
+    {_news_block(a.news_headlines, a.news_reason, a.news_urls)}
   </div>"""
 
     return f"""<!DOCTYPE html>
