@@ -316,7 +316,7 @@ def _interpret_fundamentals(a: StockAlert) -> str:
     )
 
 
-
+def _news_block(headlines: list[str], reason: str | None = None) -> str:
     if not headlines and not reason:
         return ""
     reason_html = ""
