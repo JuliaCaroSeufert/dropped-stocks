@@ -22,9 +22,9 @@ def _score_color(score: int) -> str:
 
 
 def _score_label(score: int) -> str:
-    if score >= 70: return "★ Strong Buy Candidate"
-    if score >= 50: return "◆ Possible Opportunity"
-    return "✗ Caution"
+    if score >= 70: return "★ Starker Kaufkandidat"
+    if score >= 50: return "◆ Mögliche Chance"
+    return "✗ Vorsicht"
 
 
 def _fmt_pct(v: float | None) -> str:
@@ -407,305 +407,327 @@ def _sector_context(a: StockAlert) -> str:
 def _build_html(alerts: list[StockAlert], threshold: float) -> str:
     buy_candidates = [a for a in alerts if a.is_buy_candidate]
 
+    # ── Metrics row helper ────────────────────────────────────────────────
+    def _mrow(lbl1: str, val1: str, lbl2: str, val2: str, shade: bool = False) -> str:
+        bg = "background:#fafafa;" if shade else ""
+        return (
+            f'<tr style="{bg}">'
+            f'<td style="padding:5px 10px 5px 0;color:#999;font-size:12px;white-space:nowrap'
+            f';vertical-align:top">{lbl1}</td>'
+            f'<td style="padding:5px 16px 5px 0;font-weight:600;font-size:13px;color:#1a1a2e'
+            f';vertical-align:top">{val1}</td>'
+            f'<td style="padding:5px 10px 5px 0;color:#999;font-size:12px;white-space:nowrap'
+            f';vertical-align:top">{lbl2}</td>'
+            f'<td style="padding:5px 0;font-weight:600;font-size:13px;color:#1a1a2e'
+            f';vertical-align:top">{val2}</td>'
+            f'</tr>'
+        )
+
     # ── Summary banner ────────────────────────────────────────────────────
     summary_rows = ""
     for a in buy_candidates:
-        summary_rows += f"""
-          <tr>
-            <td><strong>{a.company}</strong> ({a.ticker})</td>
-            <td style="color:{_drop_color(a.drop_pct)};font-weight:bold">{a.drop_pct:+.2f}%</td>
-            <td style="color:{_score_color(a.score)};font-weight:bold">{a.score}/100</td>
-            <td style="color:{_score_color(a.score)}">{_score_label(a.score)}</td>
-          </tr>"""
+        summary_rows += (
+            f'<tr>'
+            f'<td style="padding:9px 12px;border-bottom:1px solid #e8f5e9">'
+            f'<strong style="color:#1a1a2e">{a.company}</strong>'
+            f'<span style="color:#aaa;font-size:12px"> · {a.ticker}</span></td>'
+            f'<td style="padding:9px 12px;border-bottom:1px solid #e8f5e9;'
+            f'color:{_drop_color(a.drop_pct)};font-weight:700">{a.drop_pct:+.2f}%</td>'
+            f'<td style="padding:9px 12px;border-bottom:1px solid #e8f5e9;'
+            f'color:{_score_color(a.score)};font-weight:700">{a.score}/100</td>'
+            f'<td style="padding:9px 12px;border-bottom:1px solid #e8f5e9;'
+            f'color:{_score_color(a.score)};font-size:12px">{_score_label(a.score)}</td>'
+            f'</tr>'
+        )
 
     summary_section = ""
     if buy_candidates:
-        summary_section = f"""
-  <h3 style="color:#2e7d32">&#10003; Buy Candidates at a Glance</h3>
-  <table>
-    <thead><tr>
-      <th>Company</th><th>Weekly Drop</th><th>Score</th><th>Signal</th>
-    </tr></thead>
-    <tbody>{summary_rows}</tbody>
-  </table>
-  <br>"""
+        summary_section = (
+            f'<div style="background:#fff;border-radius:8px;border:1px solid #c8e6c9;'
+            f'margin-bottom:28px;overflow:hidden">'
+            f'<div style="background:#e8f5e9;padding:11px 16px;border-bottom:1px solid #c8e6c9">'
+            f'<span style="font-size:11px;font-weight:700;color:#2e7d32;'
+            f'text-transform:uppercase;letter-spacing:.8px">✓ Kaufkandidaten im Überblick</span>'
+            f'</div>'
+            f'<table style="width:100%;border-collapse:collapse;font-size:13px">'
+            f'<thead><tr style="background:#f9fbf9">'
+            f'<th style="padding:8px 12px;text-align:left;font-weight:600;color:#777;'
+            f'border-bottom:1px solid #e0e0e0;font-size:11px;text-transform:uppercase;'
+            f'letter-spacing:.5px">Unternehmen</th>'
+            f'<th style="padding:8px 12px;text-align:left;font-weight:600;color:#777;'
+            f'border-bottom:1px solid #e0e0e0;font-size:11px;text-transform:uppercase;'
+            f'letter-spacing:.5px">Wochenverlust</th>'
+            f'<th style="padding:8px 12px;text-align:left;font-weight:600;color:#777;'
+            f'border-bottom:1px solid #e0e0e0;font-size:11px;text-transform:uppercase;'
+            f'letter-spacing:.5px">Score</th>'
+            f'<th style="padding:8px 12px;text-align:left;font-weight:600;color:#777;'
+            f'border-bottom:1px solid #e0e0e0;font-size:11px;text-transform:uppercase;'
+            f'letter-spacing:.5px">Signal</th>'
+            f'</tr></thead>'
+            f'<tbody>{summary_rows}</tbody>'
+            f'</table>'
+            f'</div>'
+        )
 
     # ── Detail cards ──────────────────────────────────────────────────────
     cards = ""
     for a in alerts:
-        sc      = a.score
-        bg      = "#e8f5e9" if a.is_buy_candidate else "#fff3e0" if sc >= 30 else "#fce4ec"
-        border  = _score_color(sc)
-        label   = _score_label(sc)
-
-        # Score bar (visual)
-        bar_filled = sc
-        bar_empty  = 100 - sc
-        bar_color  = _score_color(sc)
+        sc       = a.score
+        border   = _score_color(sc)
+        label    = _score_label(sc)
+        score_bg = "#e8f5e9" if sc >= 70 else "#fff3e0" if sc >= 50 else "#fce4ec"
 
         rsi_note = ""
         if a.rsi is not None:
-            if a.rsi < 30:
-                rsi_note = " ⚡ Oversold"
-            elif a.rsi < 40:
-                rsi_note = " ↓ Low"
+            if a.rsi < 30:   rsi_note = " ⚡ überverkauft"
+            elif a.rsi < 40: rsi_note = " ↓ tief"
 
-        cards += f"""
-  <div style="border-left:5px solid {border};background:{bg};
-              margin:16px 0;padding:16px;border-radius:4px">
+        metrics = (
+            _mrow("ROE", _fmt_pct(a.roe),
+                  "Verschuldungsgrad", _fmt_float(a.debt_to_equity)) +
+            _mrow("Free Cash Flow", _fmt_fcf(a.free_cash_flow),
+                  "Bruttomarge", _fmt_pct(a.gross_margins), shade=True) +
+            _mrow("KGV (aktuell)", _fmt_float(a.trailing_pe),
+                  "KGV (Prognose)", _fmt_float(a.forward_pe)) +
+            _mrow("Dividendenrendite", _fmt_pct(a.dividend_yield),
+                  "Beta", _fmt_float(a.beta), shade=True) +
+            _mrow("RSI (14T)", f"{_fmt_float(a.rsi, 1)}{rsi_note}",
+                  "Analysten-Konsens", _fmt_rec(a.recommendation)) +
+            _mrow("Sektor", a.sector or "—",
+                  "Sektor-ETF diese Woche", _sector_context(a), shade=True)
+        )
 
-    <table style="width:100%;border:none">
-      <tr>
-        <td style="border:none;padding:0;vertical-align:top;width:55%">
-          <span style="font-size:17px;font-weight:bold">{a.company}</span>
-          <span style="color:#555;font-size:13px"> ({a.ticker})</span><br>
-          <span style="font-size:22px;font-weight:bold;color:{_drop_color(a.drop_pct)}">
-            {a.drop_pct:+.2f}%
-          </span>
-          <span style="color:#555;font-size:13px">
-            &nbsp;{a.price_7d_ago:.2f} → {a.price_now:.2f} {a.currency}
-          </span>
-          {_fmt_52w_range(a)}
-        </td>
-        <td style="border:none;padding:0;vertical-align:top;text-align:right">
-          <div style="font-size:28px;font-weight:bold;color:{bar_color}">{sc}/100</div>
-          <div style="font-size:11px;color:{bar_color}">{label}</div>
-          <div style="background:#ddd;border-radius:4px;height:8px;margin-top:6px;width:120px;display:inline-block">
-            <div style="background:{bar_color};width:{bar_filled}%;height:8px;border-radius:4px"></div>
-          </div>
-        </td>
-      </tr>
-    </table>
+        cards += (
+            # Card wrapper: white, rounded, subtle shadow, colored top border
+            f'<div style="background:#fff;border-radius:8px;'
+            f'box-shadow:0 1px 6px rgba(0,0,0,.07);'
+            f'margin-bottom:20px;overflow:hidden;border-top:4px solid {border}">'
 
-    <table style="width:100%;margin-top:12px;font-size:13px">
-      <tr>
-        <th style="background:#0001;text-align:left;padding:6px 10px;width:25%">Metric</th>
-        <th style="background:#0001;text-align:left;padding:6px 10px;width:25%">Value</th>
-        <th style="background:#0001;text-align:left;padding:6px 10px;width:25%">Metric</th>
-        <th style="background:#0001;text-align:left;padding:6px 10px;width:25%">Value</th>
-      </tr>
-      <tr>
-        <td style="padding:5px 10px">ROE</td>
-        <td style="padding:5px 10px;font-weight:bold">{_fmt_pct(a.roe)}</td>
-        <td style="padding:5px 10px">Debt / Equity</td>
-        <td style="padding:5px 10px;font-weight:bold">{_fmt_float(a.debt_to_equity)}</td>
-      </tr>
-      <tr style="background:#0001">
-        <td style="padding:5px 10px">Free Cash Flow</td>
-        <td style="padding:5px 10px;font-weight:bold">{_fmt_fcf(a.free_cash_flow)}</td>
-        <td style="padding:5px 10px">Gross Margin</td>
-        <td style="padding:5px 10px;font-weight:bold">{_fmt_pct(a.gross_margins)}</td>
-      </tr>
-      <tr>
-        <td style="padding:5px 10px">Trailing P/E</td>
-        <td style="padding:5px 10px;font-weight:bold">{_fmt_float(a.trailing_pe)}</td>
-        <td style="padding:5px 10px">Forward P/E</td>
-        <td style="padding:5px 10px;font-weight:bold">{_fmt_float(a.forward_pe)}</td>
-      </tr>
-      <tr style="background:#0001">
-        <td style="padding:5px 10px">Dividend Yield</td>
-        <td style="padding:5px 10px;font-weight:bold">{_fmt_pct(a.dividend_yield)}</td>
-        <td style="padding:5px 10px">Beta</td>
-        <td style="padding:5px 10px;font-weight:bold">{_fmt_float(a.beta)}</td>
-      </tr>
-      <tr>
-        <td style="padding:5px 10px">RSI (14d)</td>
-        <td style="padding:5px 10px;font-weight:bold">{_fmt_float(a.rsi, 1)}{rsi_note}</td>
-        <td style="padding:5px 10px">Analyst View</td>
-        <td style="padding:5px 10px;font-weight:bold">{_fmt_rec(a.recommendation)}</td>
-      </tr>
-      <tr style="background:#0001">
-        <td style="padding:5px 10px">Sector</td>
-        <td style="padding:5px 10px;font-weight:bold">{a.sector or '—'}</td>
-        <td style="padding:5px 10px">Sector ETF this week</td>
-        <td style="padding:5px 10px;font-weight:bold">{_sector_context(a)}</td>
-      </tr>
-    </table>
-    {_interpret_fundamentals(a)}
-    {_trend_badge(a.trend)}
-    {_news_block(a.news_headlines, a.news_reason, a.news_urls)}
-  </div>"""
+            # ── Card header ──────────────────────────────────────────────
+            f'<div style="padding:18px 20px 14px">'
+            f'<table style="width:100%;border:none;border-collapse:collapse"><tr>'
+
+            f'<td style="border:none;padding:0;vertical-align:top">'
+            f'<div style="font-size:17px;font-weight:700;color:#1a1a2e;line-height:1.2">'
+            f'{a.company}</div>'
+            f'<div style="font-size:12px;color:#aaa;margin-top:2px">{a.ticker}</div>'
+            f'<div style="margin-top:10px">'
+            f'<span style="font-size:26px;font-weight:700;color:{_drop_color(a.drop_pct)}">'
+            f'{a.drop_pct:+.2f}%</span>'
+            f'<span style="font-size:12px;color:#888;margin-left:8px">'
+            f'{a.price_7d_ago:.2f} → {a.price_now:.2f} {a.currency}</span>'
+            f'</div>'
+            f'{_fmt_52w_range(a)}'
+            f'</td>'
+
+            f'<td style="border:none;padding:0 0 0 16px;vertical-align:top;text-align:right">'
+            f'<div style="display:inline-block;background:{score_bg};border-radius:8px;'
+            f'padding:10px 14px;text-align:center;min-width:60px">'
+            f'<div style="font-size:24px;font-weight:700;color:{border};line-height:1">{sc}</div>'
+            f'<div style="font-size:10px;color:#aaa;margin-top:2px">/100</div>'
+            f'</div>'
+            f'<div style="font-size:11px;color:{border};margin-top:6px;font-weight:600">'
+            f'{label}</div>'
+            f'</td>'
+
+            f'</tr></table>'
+            f'</div>'
+
+            # ── Kennzahlen ───────────────────────────────────────────────
+            f'<div style="padding:12px 20px 16px;border-top:1px solid #f0f0f0">'
+            f'<div style="font-size:10px;font-weight:700;color:#ccc;'
+            f'text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Kennzahlen</div>'
+            f'<table style="width:100%;border:none;border-collapse:collapse">'
+            f'{metrics}'
+            f'</table>'
+            f'</div>'
+
+            f'{_interpret_fundamentals(a)}'
+            f'{_trend_badge(a.trend)}'
+            f'{_news_block(a.news_headlines, a.news_reason, a.news_urls)}'
+            f'</div>'
+        )
+
+    # ── Glossary ──────────────────────────────────────────────────────────
+    def _grow(term: str, benchmark: str, description: str, shade: bool = False) -> str:
+        bg = "background:#fafafa;" if shade else ""
+        last_td_style = "padding:9px 12px" if shade else "padding:9px 12px"
+        return (
+            f'<tr style="{bg}">'
+            f'<td style="padding:9px 12px;vertical-align:top;border-bottom:1px solid #f0f0f0">'
+            f'{term}</td>'
+            f'<td style="padding:9px 12px;vertical-align:top;border-bottom:1px solid #f0f0f0;'
+            f'font-size:12px;color:#666">{benchmark}</td>'
+            f'<td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;'
+            f'font-size:12.5px">{description}</td>'
+            f'</tr>'
+        )
+
+    glossary = (
+        f'<div style="margin-top:36px">'
+        f'<div style="font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;'
+        f'letter-spacing:.8px;margin-bottom:12px">📚 Kennzahlen erklärt</div>'
+        f'<table style="width:100%;border-collapse:collapse;font-size:12.5px;'
+        f'border:1px solid #e8e8e8;border-radius:6px;overflow:hidden">'
+        f'<thead><tr style="background:#f5f5f5">'
+        f'<th style="padding:10px 12px;text-align:left;font-weight:600;color:#555;'
+        f'border-bottom:1px solid #e0e0e0;width:18%">Kennzahl</th>'
+        f'<th style="padding:10px 12px;text-align:left;font-weight:600;color:#555;'
+        f'border-bottom:1px solid #e0e0e0;width:22%">Gut / Schlecht</th>'
+        f'<th style="padding:10px 12px;text-align:left;font-weight:600;color:#555;'
+        f'border-bottom:1px solid #e0e0e0">Was sie bedeutet</th>'
+        f'</tr></thead><tbody>'
+        + _grow("<strong>Wochenverlust</strong>", "—",
+                "Kursrückgang der Aktie innerhalb der letzten 7 Tage. Ab –10 % wird der Alert "
+                "ausgelöst. Ein starker Rückgang allein sagt noch nichts über die Qualität des "
+                "Unternehmens aus — erst die anderen Kennzahlen zeigen, ob es eine Kaufgelegenheit "
+                "ist oder ein strukturelles Problem vorliegt.")
+        + _grow("<strong>Score</strong>", "≥ 70 stark / ≥ 50 möglich / &lt; 50 Vorsicht",
+                "Zusammenfassung aller Qualitätssignale auf einer Skala von 0–100. Je höher der "
+                "Score, desto wahrscheinlicher handelt es sich um ein grundsolides Unternehmen, "
+                "das gerade günstig bewertet ist. Punkte kommen aus: ROE (20) + Schulden (20) + "
+                "FCF (15) + Sektorrückgang (15) + Analysten (10) + RSI (10) + Dividende (5) + Beta (5).",
+                shade=True)
+        + _grow("<strong>ROE</strong> <small style='color:#999'>Return on Equity</small>",
+                "≥ 15 % gut / &lt; 0 % schlecht",
+                "Eigenkapitalrendite — zeigt, wie viel Gewinn das Management aus dem investierten "
+                "Eigenkapital der Aktionäre herausholt. Ein dauerhaft hoher ROE (≥ 15 %) ist ein "
+                "starkes Zeichen für einen Wettbewerbsvorteil (Burggraben). Beispiel: Coca-Cola, "
+                "Apple. Achtung: Bei sehr hohen Schulden kann der ROE künstlich aufgebläht sein.")
+        + _grow("<strong>Verschuldungsgrad</strong> <small style='color:#999'>Debt / Equity</small>",
+                "&lt; 80 gut / &gt; 200 riskant",
+                "Verhältnis von Fremdkapital zu Eigenkapital (in %). Ein niedriger Wert bedeutet, "
+                "das Unternehmen ist wenig verschuldet und kann Krisen besser überstehen — Zinsen "
+                "müssen auch in schlechten Jahren bezahlt werden. Branchen wie Banken und Versorger "
+                "haben strukturell höhere Werte, was normal ist.",
+                shade=True)
+        + _grow("<strong>Free Cash Flow</strong>", "Positiv = gut",
+                "Geld, das nach allen Investitionen und Betriebskosten wirklich übrig bleibt. "
+                "Anders als der Gewinn (der durch Bilanzierung beeinflusst werden kann) lügt der "
+                "Cashflow nicht. Unternehmen mit positivem FCF können Dividenden zahlen, Schulden "
+                "tilgen und in Krisen selbst überleben — ohne neue Aktien ausgeben zu müssen.")
+        + _grow("<strong>Bruttomarge</strong> <small style='color:#999'>Gross Margin</small>",
+                "Je höher, desto besser",
+                "Anteil des Umsatzes, der nach den reinen Produktionskosten übrig bleibt. Eine "
+                "hohe und stabile Bruttomarge zeigt, dass das Unternehmen Preissetzungsmacht hat "
+                "(z. B. Luxusgüter, Software). Niedrige Margen &lt; 20 % deuten auf hartes "
+                "Wettbewerbsumfeld hin (z. B. Handel, Rohstoffe).",
+                shade=True)
+        + _grow("<strong>KGV (aktuell)</strong> <small style='color:#999'>Trailing P/E</small>",
+                "Kontextabhängig",
+                "Aktueller Kurs geteilt durch den Gewinn der letzten 12 Monate. Zeigt, wie viel "
+                "Anleger bereit sind für €1 Gewinn zu zahlen. Günstig oder teuer hängt stark vom "
+                "Sektor ab — Tech-Aktien haben historisch höhere KGVs als Banken. Wichtig: mit dem "
+                "Sektor-Durchschnitt und dem eigenen historischen KGV vergleichen.")
+        + _grow("<strong>KGV (Prognose)</strong> <small style='color:#999'>Forward P/E</small>",
+                "Niedriger als aktuell = Wachstum erwartet",
+                "Wie KGV (aktuell), aber basierend auf den Gewinnschätzungen der nächsten 12 Monate. "
+                "Wenn Forward P/E deutlich unter Trailing P/E liegt, erwartet der Markt steigende "
+                "Gewinne — ein gutes Zeichen. Liegt er höher, werden sinkende Gewinne erwartet.",
+                shade=True)
+        + _grow("<strong>Dividendenrendite</strong>",
+                "&gt; 2 % solide / &gt; 6 % prüfen",
+                "Jährliche Dividende in % des aktuellen Kurses. Unternehmen, die auch in Krisen "
+                "Dividende zahlen (oder erhöhen), zeigen damit finanzielle Stärke. Sehr hohe "
+                "Renditen (&gt; 6–7 %) können aber eine Warnung sein, dass der Markt eine "
+                "Kürzung erwartet.")
+        + _grow("<strong>Beta</strong>", "&lt; 1 stabil / &gt; 1,5 volatil",
+                "Misst, wie stark die Aktie im Vergleich zum Gesamtmarkt schwankt. Beta = 1,0: "
+                "bewegt sich wie der Markt. Beta = 0,5: halb so volatil (z. B. Nestlé). "
+                "Beta = 2,0: doppelt so volatil. Bei Krisenrückgängen fallen hochvolatile Aktien "
+                "oft überproportional — erholen sich aber auch schneller.",
+                shade=True)
+        + _grow("<strong>RSI (14T)</strong> <small style='color:#999'>Relative Strength Index</small>",
+                "&lt; 30 überverkauft / &gt; 70 überkauft",
+                "Technischer Indikator (0–100), der zeigt ob eine Aktie kurzfristig zu stark "
+                "gefallen (überverkauft) oder gestiegen (überkauft) ist. RSI unter 30 bedeutet: "
+                "die Aktie wurde vermutlich emotional zu stark abverkauft — statistisch folgt "
+                "häufig eine Gegenbewegung nach oben. Kein Garant, aber ein nützliches Zusatzsignal.")
+        + _grow("<strong>Analysten-Konsens</strong>", "Buy / Strong Buy = positiv",
+                "Konsensus-Empfehlung aller Analysten, die diese Aktie abdecken (aggregiert von "
+                "Yahoo Finance). \"Strong Buy\" bedeutet, die Mehrheit der Profis erwartet "
+                "Kurssteigerungen. Wichtig: Analysten liegen oft falsch — als ein Signal unter "
+                "mehreren verwenden, nicht allein.",
+                shade=True)
+        + _grow("<strong>Sektor-ETF diese Woche</strong>", "Sektor gefallen = Makro-Krise",
+                "Wochenperformance des zugehörigen Sektor-ETFs (z. B. XLK für Tech, XLF für "
+                "Finanzwerte). Wenn der gesamte Sektor ähnlich stark gefallen ist, liegt der "
+                "Grund wahrscheinlich in externen Faktoren (Zinsen, Zölle, Rezessionsangst) — "
+                "nicht im Unternehmen selbst. Wenn nur diese Aktie fiel, aber der Sektor stabil "
+                "blieb → unternehmens-spezifisches Problem → mehr Vorsicht.")
+        + _grow("<strong>52w Hoch</strong>", "Je größer Abstand, desto günstiger relativ",
+                "Höchster Kurs der letzten 52 Wochen. Der prozentuale Abstand vom Jahreshoch "
+                "zeigt wie weit die Aktie bereits korrigiert hat. –30 % vom Hoch bei einem "
+                "Qualitätsunternehmen kann eine attraktive Einstiegsgelegenheit sein — "
+                "vorausgesetzt die Fundamentaldaten sind intakt.",
+                shade=True)
+        + _grow("<strong>52w Tief</strong>", "&lt; 8% darüber = kritisch",
+                "Niedrigster Kurs der letzten 52 Wochen. Liegt der aktuelle Kurs nahe am "
+                "Jahrestief (&lt; 8% darüber), testet er eine kritische Unterstützungszone — "
+                "fällt er darunter, ist das ein starkes Warnsignal. Je mehr Abstand nach oben, "
+                "desto mehr Puffer hat die Aktie noch vor einem neuen Jahrestief.")
+        + f'</tbody></table></div>'
+    )
 
     return f"""<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    body  {{ font-family: Arial, sans-serif; color: #222; max-width: 780px; margin: 0 auto; }}
-    h2    {{ color: #b71c1c; }}
-    h3    {{ margin-top: 24px; }}
-    table {{ border-collapse: collapse; width: 100%; }}
-    th, td {{ border: 1px solid #ddd; padding: 8px 12px; text-align: left; }}
-    th    {{ background: #f5f5f5; font-weight: 600; }}
-    tr:nth-child(even) td {{ background: #fafafa; }}
-    .footer {{ margin-top: 28px; font-size: 11px; color: #999; border-top: 1px solid #eee; padding-top: 10px; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      color: #333;
+      background: #eef0f3;
+      margin: 0;
+      padding: 0;
+    }}
+    a {{ color: #1565c0; text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
   </style>
 </head>
 <body>
-  <h2>&#9888; Stock Drop Alert &mdash; Weekly Drop &gt; {threshold:.0f}%</h2>
-  <p>
-    <strong>{len(alerts)}</strong> stock(s) fell more than <strong>{threshold:.0f}%</strong>
-    this week &mdash; <strong style="color:#2e7d32">{len(buy_candidates)}</strong>
-    scored &ge; 50/100 as potential buy candidates.
-  </p>
+  <div style="max-width:700px;margin:0 auto;background:#eef0f3">
 
-  {summary_section}
+    <!-- Header -->
+    <div style="background:#1b2a4a;padding:28px 28px 22px">
+      <div style="font-size:11px;font-weight:700;color:#7a9cc4;text-transform:uppercase;
+                  letter-spacing:1.2px;margin-bottom:6px">Kursüberwachung</div>
+      <div style="font-size:26px;font-weight:700;color:#fff;letter-spacing:-.3px">
+        ⚠&nbsp; Kurswarnung
+      </div>
+      <div style="font-size:14px;color:#8ab0d0;margin-top:8px">
+        <strong style="color:#fff">{len(alerts)}</strong> Aktie(n) mit mehr als
+        <strong style="color:#fff">{threshold:.0f}%</strong> Wochenverlust
+        &nbsp;·&nbsp;
+        <strong style="color:#81c784">{len(buy_candidates)}</strong>
+        Kaufkandidat(en)&nbsp;≥&nbsp;50&nbsp;Punkte
+      </div>
+    </div>
 
-  <h3>Full Analysis</h3>
-  {cards}
+    <!-- Content -->
+    <div style="padding:24px 20px">
 
-  <h3 style="margin-top:32px;color:#37474f">&#128218; Kennzahlen erklärt</h3>
-  <table style="font-size:13px">
-    <thead>
-      <tr>
-        <th style="width:18%">Kennzahl</th>
-        <th style="width:18%">Gut / Schlecht</th>
-        <th>Was sie bedeutet &amp; warum sie wichtig ist</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><strong>Weekly Drop</strong></td>
-        <td>—</td>
-        <td>Kursrückgang der Aktie innerhalb der letzten 7 Tage. Ab –10 % wird
-            der Alert ausgelöst. Ein starker Rückgang allein sagt noch nichts über
-            die Qualität des Unternehmens aus — erst die anderen Kennzahlen zeigen,
-            ob es eine Kaufgelegenheit ist oder ein strukturelles Problem vorliegt.</td>
-      </tr>
-      <tr>
-        <td><strong>Score</strong></td>
-        <td>≥ 70 stark &nbsp;/&nbsp; ≥ 50 möglich &nbsp;/&nbsp; &lt; 50 Vorsicht</td>
-        <td>Zusammenfassung aller Qualitätssignale auf einer Skala von 0–100.
-            Je höher der Score, desto wahrscheinlicher handelt es sich um ein
-            grundsolides Unternehmen, das gerade günstig bewertet ist.
-            Punkte kommen aus: ROE (20) + Schulden (20) + FCF (15) +
-            Sektorrückgang (15) + Analysten (10) + RSI (10) + Dividende (5) + Beta (5).</td>
-      </tr>
-      <tr>
-        <td><strong>ROE</strong><br><small>Return on Equity</small></td>
-        <td>≥ 15 % gut &nbsp;/&nbsp; &lt; 0 % schlecht</td>
-        <td>Eigenkapitalrendite — zeigt, wie viel Gewinn das Management aus dem
-            investierten Eigenkapital der Aktionäre herausholt.
-            Ein dauerhaft hoher ROE (≥ 15 %) ist ein starkes Zeichen für einen
-            Wettbewerbsvorteil (Burggraben). Beispiel: Coca-Cola, Apple.
-            Achtung: Bei sehr hohen Schulden kann der ROE künstlich aufgebläht sein.</td>
-      </tr>
-      <tr>
-        <td><strong>Debt / Equity</strong><br><small>Verschuldungsgrad</small></td>
-        <td>&lt; 80 gut &nbsp;/&nbsp; &gt; 200 riskant</td>
-        <td>Verhältnis von Fremdkapital zu Eigenkapital (in %).
-            Ein niedriger Wert bedeutet, das Unternehmen ist wenig verschuldet und
-            kann Krisen besser überstehen — Zinsen müssen auch in schlechten Jahren
-            bezahlt werden. Branchen wie Banken und Versorger haben strukturell
-            höhere Werte, was normal ist.</td>
-      </tr>
-      <tr>
-        <td><strong>Free Cash Flow</strong><br><small>Freier Cashflow</small></td>
-        <td>Positiv = gut</td>
-        <td>Geld, das nach allen Investitionen und Betriebskosten wirklich übrig bleibt.
-            Anders als der Gewinn (der durch Bilanzierung beeinflusst werden kann)
-            lügt der Cashflow nicht. Unternehmen mit positivem FCF können
-            Dividenden zahlen, Schulden tilgen und in Krisen selbst überleben —
-            ohne neue Aktien ausgeben zu müssen.</td>
-      </tr>
-      <tr>
-        <td><strong>Gross Margin</strong><br><small>Bruttomarge</small></td>
-        <td>Je höher, desto besser</td>
-        <td>Anteil des Umsatzes, der nach den reinen Produktionskosten übrig bleibt.
-            Eine hohe und stabile Bruttomarge zeigt, dass das Unternehmen Preissetzungsmacht
-            hat (z. B. Luxusgüter, Software). Niedrige Margen &lt; 20 % deuten
-            auf hartes Wettbewerbsumfeld hin (z. B. Handel, Rohstoffe).</td>
-      </tr>
-      <tr>
-        <td><strong>Trailing P/E</strong><br><small>Kurs-Gewinn-Verhältnis</small></td>
-        <td>Kontext abhängig</td>
-        <td>Aktueller Kurs geteilt durch den Gewinn der letzten 12 Monate.
-            Zeigt, wie viel Anleger bereit sind für €1 Gewinn zu zahlen.
-            Ein P/E von 15 bedeutet: der Markt zahlt 15-fachen Jahresgewinn.
-            Günstig oder teuer hängt stark vom Sektor ab — Tech-Aktien haben
-            historisch höhere KGVs als Banken. Wichtig: mit dem Sektor-Durchschnitt
-            und dem eigenen historischen KGV vergleichen.</td>
-      </tr>
-      <tr>
-        <td><strong>Forward P/E</strong></td>
-        <td>Niedriger als Trailing = Wachstum erwartet</td>
-        <td>Wie Trailing P/E, aber basierend auf den Gewinnschätzungen der
-            nächsten 12 Monate. Wenn Forward P/E deutlich unter Trailing P/E liegt,
-            erwartet der Markt steigende Gewinne — ein gutes Zeichen.
-            Liegt er höher, werden sinkende Gewinne erwartet.</td>
-      </tr>
-      <tr>
-        <td><strong>Dividend Yield</strong><br><small>Dividendenrendite</small></td>
-        <td>&gt; 2 % solide &nbsp;/&nbsp; &gt; 6 % prüfen</td>
-        <td>Jährliche Dividende in % des aktuellen Kurses.
-            Unternehmen, die auch in Krisen Dividende zahlen (oder erhöhen),
-            zeigen damit finanzielle Stärke und Selbstvertrauen des Managements.
-            Sehr hohe Renditen (&gt; 6–7 %) können aber eine Warnung sein,
-            dass der Markt eine Kürzung erwartet.</td>
-      </tr>
-      <tr>
-        <td><strong>Beta</strong></td>
-        <td>&lt; 1 stabil &nbsp;/&nbsp; &gt; 1,5 volatil</td>
-        <td>Misst, wie stark die Aktie im Vergleich zum Gesamtmarkt schwankt.
-            Beta = 1,0 bedeutet: bewegt sich genau wie der Markt.
-            Beta = 0,5 bedeutet: halb so volatil (z. B. Nestlé).
-            Beta = 2,0 bedeutet: doppelt so volatil (z. B. manche Tech-Aktien).
-            Bei Krisenrückgängen fallen hochvolatile Aktien oft überproportional —
-            aber erholen sich auch schneller.</td>
-      </tr>
-      <tr>
-        <td><strong>RSI (14d)</strong><br><small>Relative Strength Index</small></td>
-        <td>&lt; 30 überverkauft &nbsp;/&nbsp; &gt; 70 überkauft</td>
-        <td>Technischer Indikator (0–100), der zeigt ob eine Aktie kurzfristig
-            zu stark gefallen (überverkauft) oder gestiegen (überkauft) ist.
-            RSI unter 30 bedeutet: die Aktie wurde vermutlich emotional zu stark
-            abverkauft — statistisch folgt häufig eine Gegenbewegung nach oben.
-            Kein Garant, aber ein nützliches Zusatzsignal.</td>
-      </tr>
-      <tr>
-        <td><strong>Analyst View</strong></td>
-        <td>Buy / Strong Buy = positiv</td>
-        <td>Konsensus-Empfehlung aller Analysten, die diese Aktie abdecken
-            (aggregiert von Yahoo Finance). "Strong Buy" bedeutet, die Mehrheit
-            der Profis erwartet Kurssteigerungen. Wichtig: Analysten liegen oft
-            falsch und haben manchmal Interessenkonflikte — als ein Signal unter
-            mehreren verwenden, nicht allein.</td>
-      </tr>
-      <tr>
-        <td><strong>Sector ETF this week</strong></td>
-        <td>Sektor auch gefallen = Makro-Krise</td>
-        <td>Wochenperformance des zugehörigen Sektor-ETFs (z. B. XLK für Tech,
-            XLF für Finanzwerte). Wenn der gesamte Sektor ähnlich stark gefallen
-            ist, ist der Rückgang wahrscheinlich auf externe Faktoren zurückzuführen
-            (Zinsen, Zölle, Rezessionsangst) — nicht auf ein Problem im Unternehmen.
-            Das macht den Rückgang eher zu einer Kaufgelegenheit.
-            Wenn nur diese Aktie gefallen ist, aber der Sektor stabil war →
-            Unternehmens-spezifisches Problem → mehr Vorsicht geboten.</td>
-      </tr>
-      <tr>
-        <td><strong>52w High</strong></td>
-        <td>Je größer Abstand, desto günstiger relativ</td>
-        <td>Höchster Kurs der letzten 52 Wochen. Der prozentuale Abstand vom
-            Jahreshoch zeigt wie weit die Aktie bereits korrigiert hat.
-            –30 % vom Hoch bei einem Qualitätsunternehmen kann eine attraktive
-            Einstiegsgelegenheit sein — vorausgesetzt die Fundamentaldaten sind intakt.</td>
-      </tr>
-      <tr>
-        <td><strong>52w Tief</strong></td>
-        <td>&lt; 8% darüber = kritisch</td>
-        <td>Niedrigster Kurs der letzten 52 Wochen. Wichtig für die Trendprognose:
-            liegt der aktuelle Kurs nahe am Jahrestief (&lt; 8% darüber), testet
-            er eine kritische Unterstützungszone — fällt er darunter, ist das ein
-            starkes Warnsignal (kein Boden in Sicht). Je mehr Abstand nach oben,
-            desto mehr Puffer hat die Aktie noch vor einem neuen Jahrestief.</td>
-      </tr>
-    </tbody>
-  </table>
+      {summary_section}
 
-  <p class="footer">
-    Preise &amp; Fundamentaldaten von Yahoo Finance via yfinance.<br>
-    <strong>Dies ist keine Anlageberatung. Eigene Recherche ist unbedingt erforderlich.</strong>
-  </p>
+      <div style="font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;
+                  letter-spacing:.8px;margin-bottom:14px">Detailanalyse</div>
+
+      {cards}
+
+      {glossary}
+
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:16px 24px 24px;font-size:11px;color:#aaa;background:#f4f5f7;
+                border-top:1px solid #dde0e6;text-align:center;line-height:1.7">
+      Kurse &amp; Fundamentaldaten von Yahoo Finance via yfinance.<br>
+      <strong style="color:#888">Dies ist keine Anlageberatung.
+      Eigene Recherche ist unbedingt erforderlich.</strong>
+    </div>
+
+  </div>
 </body>
 </html>"""
 
