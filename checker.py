@@ -373,9 +373,12 @@ def _fetch_fundamentals(ticker: str) -> dict:
 def _fetch_news(ticker: str, max_items: int = 4) -> tuple[list[str], list[str]]:
     """
     Fetches recent news for a ticker via yfinance.
-    Returns (headlines, urls) — parallel lists, both same length.
+    Returns (headlines, urls) — parallel lists, always same length.
+    Every URL is guaranteed non-empty: falls back to a Google News search
+    for the exact headline title if no direct URL is available.
     """
     try:
+        from urllib.parse import quote_plus
         raw = yf.Ticker(ticker).news or []
         headlines, urls = [], []
         for item in raw[:max_items]:
@@ -390,9 +393,11 @@ def _fetch_news(ticker: str, max_items: int = 4) -> tuple[list[str], list[str]]:
                 or content.get("url")
                 or item.get("link", "")
             )
+            if not url and title:
+                url = f"https://news.google.com/search?q={quote_plus(title)}"
             if title:
                 headlines.append(f"{title}{f'  ({source})' if source else ''}")
-                urls.append(url or "")
+                urls.append(url)
         return headlines, urls
     except Exception:
         return [], []
