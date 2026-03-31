@@ -102,7 +102,221 @@ def _trend_badge(t: TrendPrediction | None) -> str:
   </div>"""
 
 
-def _news_block(headlines: list[str], reason: str | None = None) -> str:
+def _interpret_fundamentals(a: StockAlert) -> str:
+    """
+    Generates company-specific German sentences for each available metric,
+    explaining what the concrete value means for this particular stock.
+    Returns an HTML block, or "" if no metrics are available.
+    """
+    lines: list[tuple[str, str]] = []   # (color, text)
+    name = a.company.split(" (")[0]     # strip country suffix if present
+
+    # ── ROE ──────────────────────────────────────────────────────────────
+    if a.roe is not None:
+        v = a.roe * 100
+        if v >= 30:
+            lines.append(("#2e7d32",
+                f"<b>ROE {v:.1f}%</b> — Für jeden Euro Eigenkapital erwirtschaftet {name} "
+                f"{v:.1f} Cent Gewinn. Das ist exzellent (Marktdurchschnitt ~15%) und deutet "
+                f"auf ein hocheffizientes, skalierbares Geschäftsmodell hin."))
+        elif v >= 20:
+            lines.append(("#2e7d32",
+                f"<b>ROE {v:.1f}%</b> — Starke Eigenkapitalrendite; {name} setzt das "
+                f"Kapital der Aktionäre überdurchschnittlich effizient ein."))
+        elif v >= 10:
+            lines.append(("#888",
+                f"<b>ROE {v:.1f}%</b> — Solide, aber im Mittelfeld. {name} erzielt eine "
+                f"akzeptable Rendite auf das eingesetzte Eigenkapital."))
+        elif v >= 0:
+            lines.append(("#e65100",
+                f"<b>ROE {v:.1f}%</b> — Schwach. {name} erwirtschaftet kaum Rendite auf "
+                f"das Eigenkapital der Aktionäre — unter dem Marktdurchschnitt."))
+        else:
+            lines.append(("#b71c1c",
+                f"<b>ROE {v:.1f}%</b> — Negativ: {name} macht Verluste und zehrt am "
+                f"Eigenkapital. Kritisches Warnsignal."))
+
+    # ── Debt / Equity ─────────────────────────────────────────────────────
+    if a.debt_to_equity is not None:
+        v = a.debt_to_equity
+        if v < 30:
+            lines.append(("#2e7d32",
+                f"<b>Verschuldung D/E {v:.0f}</b> — Sehr konservative Bilanz. {name} "
+                f"finanziert sich kaum über Fremdkapital — geringes Insolvenzrisiko "
+                f"auch bei steigenden Zinsen."))
+        elif v < 80:
+            lines.append(("#2e7d32",
+                f"<b>Verschuldung D/E {v:.0f}</b> — Moderate, gesunde Kapitalstruktur "
+                f"für die meisten Branchen."))
+        elif v < 150:
+            lines.append(("#e65100",
+                f"<b>Verschuldung D/E {v:.0f}</b> — Erhöhte Fremdfinanzierung. {name} "
+                f"trägt eine spürbare Zinslast — bei Umsatzrückgängen kann das eng werden."))
+        else:
+            lines.append(("#b71c1c",
+                f"<b>Verschuldung D/E {v:.0f}</b> — Hohe Verschuldung. {name} ist stark "
+                f"fremdfinanziert — steigendes Zinsumfeld oder Umsatzeinbrüche erhöhen "
+                f"das Ausfallrisiko deutlich."))
+
+    # ── Free Cash Flow ────────────────────────────────────────────────────
+    if a.free_cash_flow is not None:
+        fcf_str = _fmt_fcf(a.free_cash_flow)
+        if a.free_cash_flow > 0:
+            lines.append(("#2e7d32",
+                f"<b>Free Cash Flow {fcf_str}</b> — {name} generiert nach allen "
+                f"Investitionen echtes Bargeld. Das ermöglicht Dividenden, Aktienrückkäufe "
+                f"oder Schuldenabbau ohne externe Finanzierung."))
+        else:
+            lines.append(("#e65100",
+                f"<b>Free Cash Flow {fcf_str}</b> — {name} gibt derzeit mehr aus als es "
+                f"einnimmt. Das kann auf eine Investitionsphase hindeuten, ist aber "
+                f"dauerhaft nicht tragbar."))
+
+    # ── Trailing P/E ──────────────────────────────────────────────────────
+    if a.trailing_pe is not None:
+        v = a.trailing_pe
+        if v < 0:
+            lines.append(("#b71c1c",
+                f"<b>KGV (trailing) negativ ({v:.1f}x)</b> — {name} schreibt derzeit "
+                f"Verluste; ein KGV ist nicht aussagekräftig."))
+        elif v < 10:
+            lines.append(("#2e7d32",
+                f"<b>KGV {v:.1f}x</b> — Günstige Bewertung. Für jeden Euro Gewinn zahlt man "
+                f"nur {v:.1f}€ — deutlich unter dem Marktdurchschnitt (~20x). "
+                f"Könnte Unterbewertung oder strukturelle Risiken signalisieren."))
+        elif v < 18:
+            lines.append(("#2e7d32",
+                f"<b>KGV {v:.1f}x</b> — Faire bis moderate Bewertung, leicht unter "
+                f"Marktdurchschnitt. {name} ist nicht teuer."))
+        elif v < 30:
+            lines.append(("#888",
+                f"<b>KGV {v:.1f}x</b> — Marktdurchschnittliche Bewertung. {name} wird "
+                f"ohne besondere Prämie oder Abschlag gehandelt."))
+        elif v < 50:
+            lines.append(("#e65100",
+                f"<b>KGV {v:.1f}x</b> — Erhöhte Bewertung. Der Markt erwartet "
+                f"überdurchschnittliches Gewinnwachstum von {name} — dieses muss "
+                f"geliefert werden, sonst droht eine Bewertungskorrektur."))
+        else:
+            lines.append(("#b71c1c",
+                f"<b>KGV {v:.1f}x</b> — Sehr hohe Bewertung. {name} muss langfristig "
+                f"stark wachsen, um diesen Preis zu rechtfertigen — hohes Enttäuschungspotenzial."))
+
+    # ── Gross Margin ──────────────────────────────────────────────────────
+    if a.gross_margins is not None:
+        v = a.gross_margins * 100
+        if v >= 60:
+            lines.append(("#2e7d32",
+                f"<b>Bruttomarge {v:.1f}%</b> — Von jedem Umsatz-Euro behält {name} "
+                f"{v:.0f} Cent nach direkten Produktionskosten. Das ist exzellent und "
+                f"deutet auf starke Preismacht oder ein skalierbares Software-/Plattformmodell hin."))
+        elif v >= 35:
+            lines.append(("#2e7d32",
+                f"<b>Bruttomarge {v:.1f}%</b> — Solide Marge. {name} hat ausreichend "
+                f"Spielraum für Betriebskosten, F&E und Gewinn."))
+        elif v >= 15:
+            lines.append(("#888",
+                f"<b>Bruttomarge {v:.1f}%</b> — Moderate Marge, typisch für "
+                f"produzierende oder handelstreibende Unternehmen mit hohen Materialkosten."))
+        else:
+            lines.append(("#e65100",
+                f"<b>Bruttomarge {v:.1f}%</b> — Sehr enge Marge. {name} hat kaum "
+                f"Puffer — Kostensteigerungen oder Preisdruck können schnell in die "
+                f"Verlustzone führen."))
+
+    # ── Beta ──────────────────────────────────────────────────────────────
+    if a.beta is not None:
+        v = a.beta
+        if v < 0:
+            lines.append(("#2e7d32",
+                f"<b>Beta {v:.2f}</b> — Negativ korreliert zum Markt: {name} steigt "
+                f"tendenziell wenn der Gesamtmarkt fällt — klassische Absicherung."))
+        elif v < 0.5:
+            lines.append(("#2e7d32",
+                f"<b>Beta {v:.2f}</b> — Sehr defensiv. {name} bewegt sich kaum mit dem "
+                f"Markt — geringe Volatilität, stabiles Investment auch in Krisen."))
+        elif v < 0.9:
+            lines.append(("#2e7d32",
+                f"<b>Beta {v:.2f}</b> — Defensiv. {name} schwankt weniger als der "
+                f"Gesamtmarkt — geeignet für risikobewusste Anleger."))
+        elif v < 1.2:
+            lines.append(("#888",
+                f"<b>Beta {v:.2f}</b> — Marktkonform. {name} folgt dem Index "
+                f"weitgehend 1:1."))
+        elif v < 1.8:
+            lines.append(("#e65100",
+                f"<b>Beta {v:.2f}</b> — Überdurchschnittlich volatil. Bei einem "
+                f"Markteinbruch von 10% fällt {name} typischerweise ~{v*10:.0f}%. "
+                f"Hohes Risiko, aber auch höhere Upside-Chance."))
+        else:
+            lines.append(("#b71c1c",
+                f"<b>Beta {v:.2f}</b> — Sehr hohe Volatilität. {name} verstärkt "
+                f"Marktbewegungen erheblich — nur für sehr risikotolerante Anleger."))
+
+    # ── RSI ───────────────────────────────────────────────────────────────
+    if a.rsi is not None:
+        v = a.rsi
+        if v < 25:
+            lines.append(("#1565c0",
+                f"<b>RSI {v:.0f}</b> — Extrem überverkauft. Aus rein technischer Sicht "
+                f"ist {name} auf einem Niveau, das historisch häufig Rebounds ausgelöst hat. "
+                f"Kein Garantiesignal, aber die Verkäufer könnten erschöpft sein."))
+        elif v < 30:
+            lines.append(("#1565c0",
+                f"<b>RSI {v:.0f}</b> — Überverkauft (klassische Kaufzone). Viele "
+                f"technische Trader sehen RSI unter 30 als Einstiegssignal — der "
+                f"Verkaufsdruck lässt nach."))
+        elif v < 45:
+            lines.append(("#888",
+                f"<b>RSI {v:.0f}</b> — Schwacher Bereich, aber noch kein Extremwert. "
+                f"{name} ist unter Druck, ohne klassisch überverkauft zu sein."))
+        elif v > 70:
+            lines.append(("#b71c1c",
+                f"<b>RSI {v:.0f}</b> — Überkauft. {name} ist technisch überhitzt — "
+                f"erhöhtes Rückschlagrisiko kurzfristig."))
+
+    # ── Dividend Yield ────────────────────────────────────────────────────
+    if a.dividend_yield and a.dividend_yield > 0:
+        v = a.dividend_yield * 100
+        lines.append(("#2e7d32",
+            f"<b>Dividendenrendite {v:.1f}%</b> — Wer heute für 10.000€ {name}-Aktien "
+            f"kauft, erhält jährlich ~{10000*a.dividend_yield:.0f}€ Dividende "
+            f"(sofern die Ausschüttung stabil bleibt)."))
+
+    # ── 52w High/Low context ──────────────────────────────────────────────
+    if a.week_high_52 and a.week_low_52:
+        from_high = (a.price_now / a.week_high_52 - 1) * 100
+        from_low  = (a.price_now / a.week_low_52  - 1) * 100
+        color = "#b71c1c" if from_low < 8 else "#888"
+        lines.append((color,
+            f"<b>Jahresspanne</b> — {name} handelt {abs(from_high):.0f}% unter dem "
+            f"52-Wochen-Hoch ({a.week_high_52:.2f} {a.currency}) und nur {from_low:.0f}% "
+            f"über dem Jahrestief ({a.week_low_52:.2f} {a.currency}). "
+            + ("Die Nähe zum Jahrestief ist kritisch — ein Bruch darunter wäre ein starkes Warnsignal."
+               if from_low < 8 else
+               f"Die Aktie befindet sich im unteren Drittel ihrer Jahresspanne."
+               if from_high < -30 else
+               "Die Aktie liegt im mittleren Bereich ihrer Jahresspanne.")))
+
+    if not lines:
+        return ""
+
+    rows = "".join(
+        f'<div style="margin:5px 0;font-size:12.5px;color:{color};'
+        f'border-left:2px solid {color};padding-left:8px">{text}</div>'
+        for color, text in lines
+    )
+    return (
+        f'<div style="margin-top:14px;padding:10px 14px;background:#fafafa;'
+        f'border:1px solid #e0e0e0;border-radius:4px">'
+        f'<div style="font-weight:bold;font-size:12px;color:#555;margin-bottom:8px;'
+        f'text-transform:uppercase;letter-spacing:0.5px">'
+        f'Was bedeuten die Kennzahlen für {name}?</div>'
+        f'{rows}</div>'
+    )
+
+
+
     if not headlines and not reason:
         return ""
     reason_html = ""
@@ -286,6 +500,7 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
         <td style="padding:5px 10px;font-weight:bold">{_sector_context(a)}</td>
       </tr>
     </table>
+    {_interpret_fundamentals(a)}
     {_trend_badge(a.trend)}
     {_news_block(a.news_headlines, a.news_reason)}
   </div>"""
