@@ -469,15 +469,33 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
             f'color:{_score_color(a.score)};font-size:12px">{_score_label(a.score)}</td>'
             f'</tr>'
         )
+    for a in rise_alerts:
+        summary_rows += (
+            f'<tr style="background:#f3f8ff">'
+            f'<td style="padding:9px 12px;border-bottom:1px solid #e3f2fd">'
+            f'<strong style="color:#1a1a2e">{a.company}</strong>'
+            f'<span style="color:#aaa;font-size:12px"> · {a.ticker}</span>'
+            f'<span style="font-size:10px;color:#1565c0;font-weight:700;'
+            f'margin-left:6px;vertical-align:middle">📈 ANSTIEG</span></td>'
+            f'<td style="padding:9px 12px;border-bottom:1px solid #e3f2fd;'
+            f'color:#1565c0;font-weight:700">{a.drop_pct:+.2f}%</td>'
+            f'<td style="padding:9px 12px;border-bottom:1px solid #e3f2fd;'
+            f'color:{_rise_score_color(a.score)};font-weight:700">{a.score}/100</td>'
+            f'<td style="padding:9px 12px;border-bottom:1px solid #e3f2fd;'
+            f'color:{_rise_score_color(a.score)};font-size:12px">'
+            f'{_momentum_days_badge(a.momentum_days)}</td>'
+            f'</tr>'
+        )
 
     summary_section = ""
-    if buy_candidates:
+    if buy_candidates or rise_alerts:
+        col2_header = "Wochenveränderung"
         summary_section = (
             f'<div style="background:#fff;border-radius:8px;border:1px solid #c8e6c9;'
             f'margin-bottom:28px;overflow:hidden">'
             f'<div style="background:#e8f5e9;padding:11px 16px;border-bottom:1px solid #c8e6c9">'
             f'<span style="font-size:11px;font-weight:700;color:#2e7d32;'
-            f'text-transform:uppercase;letter-spacing:.8px">✓ Kaufkandidaten im Überblick</span>'
+            f'text-transform:uppercase;letter-spacing:.8px">✓ Positive Kandidaten im Überblick</span>'
             f'</div>'
             f'<table style="width:100%;border-collapse:collapse;font-size:13px">'
             f'<thead><tr style="background:#f9fbf9">'
@@ -486,7 +504,7 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
             f'letter-spacing:.5px">Unternehmen</th>'
             f'<th style="padding:8px 12px;text-align:left;font-weight:600;color:#777;'
             f'border-bottom:1px solid #e0e0e0;font-size:11px;text-transform:uppercase;'
-            f'letter-spacing:.5px">Wochenverlust</th>'
+            f'letter-spacing:.5px">{col2_header}</th>'
             f'<th style="padding:8px 12px;text-align:left;font-weight:600;color:#777;'
             f'border-bottom:1px solid #e0e0e0;font-size:11px;text-transform:uppercase;'
             f'letter-spacing:.5px">Score</th>'
