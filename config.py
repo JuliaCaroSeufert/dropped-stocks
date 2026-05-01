@@ -16,8 +16,14 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# ── Alert threshold ────────────────────────────────────────────────────────
-DROP_THRESHOLD_PCT = 10.0
+# ── Alert thresholds ──────────────────────────────────────────────────────
+DROP_THRESHOLD_PCT  = 10.0   # weekly drop  > 10% triggers a drop alert
+
+# Rationale for rise threshold:
+#   +7% in 7 days = genuine early momentum (≈ +48% annualized).
+#   Lower (+5%) catches too much noise; higher (+10%) you're already late.
+#   Combined with the ≥ 3/5-days continuity filter, this avoids one-day spikes.
+RISE_THRESHOLD_PCT  =  7.0   # weekly rise  ≥  7% + ≥3/5 up-days → rise alert
 
 # ── Cache ──────────────────────────────────────────────────────────────────
 _CACHE_FILE = Path(__file__).parent / ".watchlist_cache.json"

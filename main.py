@@ -46,7 +46,7 @@ import schedule
 from dotenv import load_dotenv
 
 from checker import check_watchlist
-from config import DROP_THRESHOLD_PCT, WATCHLIST, _CACHE_FILE, build_watchlist
+from config import DROP_THRESHOLD_PCT, RISE_THRESHOLD_PCT, WATCHLIST, _CACHE_FILE, build_watchlist
 from notifier import send_alert
 
 load_dotenv()
@@ -93,16 +93,19 @@ def run_check() -> None:
     logger.info("Starting stock check — %d tickers", len(WATCHLIST))
     alerts = check_watchlist(WATCHLIST)
 
+    drops = [a for a in alerts if not a.is_rise]
+    rises = [a for a in alerts if a.is_rise]
+
     if not alerts:
         logger.info(
-            "No stocks dropped more than %.0f%% in the past week. Nothing to report.",
-            DROP_THRESHOLD_PCT,
+            "Keine Alerts: kein Ticker >%.0f%% gefallen oder >%.0f%% gestiegen.",
+            DROP_THRESHOLD_PCT, RISE_THRESHOLD_PCT,
         )
         return
 
     logger.info(
-        "%d stock(s) dropped >%.0f%% — sending alert e-mail …",
-        len(alerts), DROP_THRESHOLD_PCT,
+        "%d Verlust-Alert(s) >%.0f%% / %d Anstieg-Alert(s) >%.0f%% — sende E-Mail …",
+        len(drops), DROP_THRESHOLD_PCT, len(rises), RISE_THRESHOLD_PCT,
     )
     for a in alerts:
         logger.info("  %s", a)

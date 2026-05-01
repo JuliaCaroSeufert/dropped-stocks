@@ -9,6 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from checker import StockAlert, TrendPrediction
+from config import RISE_THRESHOLD_PCT
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +56,14 @@ def _trend_badge(t: TrendPrediction | None) -> str:
     if t is None:
         return ""
     cfg = {
-        "BOTTOM_LIKELY": ("#2e7d32", "#e8f5e9", "📈 Tief möglicherweise erreicht"),
-        "MIXED":         ("#e65100", "#fff3e0", "⚖️  Gemischte Signale"),
-        "DOWNTREND":     ("#b71c1c", "#fce4ec", "📉 Abwärtstrend läuft weiter"),
+        # drop verdicts
+        "BOTTOM_LIKELY":   ("#2e7d32", "#e8f5e9", "📈 Tief möglicherweise erreicht"),
+        "MIXED":           ("#e65100", "#fff3e0", "⚖️  Gemischte Signale"),
+        "DOWNTREND":       ("#b71c1c", "#fce4ec", "📉 Abwärtstrend läuft weiter"),
+        # rise verdicts
+        "MOMENTUM_STARK":  ("#1565c0", "#e3f2fd", "🚀 Momentum intakt — Trend läuft weiter"),
+        "ÜBERHITZT":       ("#b71c1c", "#fce4ec", "🌡 Überhitzt — Korrekturrisiko erhöht"),
+        "GEMISCHT":        ("#e65100", "#fff3e0", "⚖️  Gemischte Momentum-Signale"),
     }
     color, bg, label = cfg.get(t.verdict, ("#555", "#f5f5f5", t.verdict))
 
@@ -330,6 +336,7 @@ def _news_block(
     headlines: list[str],
     reason: str | None = None,
     urls: list[str] | None = None,
+    label: str = "Warum ist die Aktie gefallen?",
 ) -> str:
     if not headlines and not reason:
         return ""
@@ -362,7 +369,7 @@ def _news_block(
         f'<div style="margin-top:12px;padding:10px 14px;background:#f9f9f9;'
         f'border-left:3px solid #3949ab;border-radius:3px">'
         f'<div style="font-weight:bold;font-size:12px;color:#3949ab;margin-bottom:8px;'
-        f'text-transform:uppercase;letter-spacing:0.5px">Warum ist die Aktie gefallen?</div>'
+        f'text-transform:uppercase;letter-spacing:0.5px">{label}</div>'
         f'{reason_html}{items_html}'
         f'</div>'
     )
@@ -402,10 +409,32 @@ def _sector_context(a: StockAlert) -> str:
     return f"{etf_pct} ← sector held / rose (company-specific!)"
 
 
+def _rise_score_color(score: int) -> str:
+    if score >= 70: return "#1565c0"   # blue  — strong momentum + quality
+    if score >= 50: return "#e65100"   # amber — decent
+    return "#757575"                   # gray  — weak fundamentals
+
+
+def _rise_score_label(score: int) -> str:
+    if score >= 70: return "★ Starkes Momentum + Qualität"
+    if score >= 50: return "◆ Solide Basis"
+    return "✗ Schwache Fundamentals"
+
+
+def _momentum_days_badge(days: int) -> str:
+    color = "#1565c0" if days >= 4 else "#e65100" if days == 3 else "#999"
+    return (
+        f'<span style="font-size:11px;color:{color};font-weight:600">'
+        f'{days}/5 Handelstagen positiv</span>'
+    )
+
+
 # ── HTML builder ──────────────────────────────────────────────────────────────
 
 def _build_html(alerts: list[StockAlert], threshold: float) -> str:
-    buy_candidates = [a for a in alerts if a.is_buy_candidate]
+    drop_alerts = [a for a in alerts if not a.is_rise]
+    rise_alerts = [a for a in alerts if a.is_rise]
+    buy_candidates = [a for a in drop_alerts if a.is_buy_candidate]
 
     # ── Metrics row helper ────────────────────────────────────────────────
     def _mrow(lbl1: str, val1: str, lbl2: str, val2: str, shade: bool = False) -> str:
@@ -469,18 +498,27 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
             f'</div>'
         )
 
-    # ── Detail cards ──────────────────────────────────────────────────────
-    cards = ""
-    for a in alerts:
-        sc       = a.score
-        border   = _score_color(sc)
-        label    = _score_label(sc)
-        score_bg = "#e8f5e9" if sc >= 70 else "#fff3e0" if sc >= 50 else "#fce4ec"
+    # ── Helper: build one stock card (used for both drops and rises) ──────
+    def _build_card(a: StockAlert) -> str:
+        if a.is_rise:
+            sc       = a.score
+            border   = _rise_score_color(sc)
+            label    = _rise_score_label(sc)
+            score_bg = "#e3f2fd" if sc >= 70 else "#fff3e0" if sc >= 50 else "#f5f5f5"
+        else:
+            sc       = a.score
+            border   = _score_color(sc)
+            label    = _score_label(sc)
+            score_bg = "#e8f5e9" if sc >= 70 else "#fff3e0" if sc >= 50 else "#fce4ec"
 
         rsi_note = ""
         if a.rsi is not None:
-            if a.rsi < 30:   rsi_note = " ⚡ überverkauft"
-            elif a.rsi < 40: rsi_note = " ↓ tief"
+            if a.is_rise:
+                if a.rsi > 75:   rsi_note = " 🌡 überkauft"
+                elif a.rsi > 65: rsi_note = " ↑ stark"
+            else:
+                if a.rsi < 30:   rsi_note = " ⚡ überverkauft"
+                elif a.rsi < 40: rsi_note = " ↓ tief"
 
         metrics = (
             _mrow("ROE", _fmt_pct(a.roe),
@@ -497,13 +535,15 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
                   "Sektor-ETF diese Woche", _sector_context(a), shade=True)
         )
 
-        cards += (
-            # Card wrapper: white, rounded, subtle shadow, colored top border
+        pct_color = "#1565c0" if a.is_rise else _drop_color(a.drop_pct)
+        sub_info  = _momentum_days_badge(a.momentum_days) if a.is_rise else _fmt_52w_range(a)
+        news_lbl  = "Warum ist die Aktie gestiegen?" if a.is_rise else "Warum ist die Aktie gefallen?"
+
+        return (
             f'<div style="background:#fff;border-radius:8px;'
             f'box-shadow:0 1px 6px rgba(0,0,0,.07);'
             f'margin-bottom:20px;overflow:hidden;border-top:4px solid {border}">'
 
-            # ── Card header ──────────────────────────────────────────────
             f'<div style="padding:18px 20px 14px">'
             f'<table style="width:100%;border:none;border-collapse:collapse"><tr>'
 
@@ -512,12 +552,12 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
             f'{a.company}</div>'
             f'<div style="font-size:12px;color:#aaa;margin-top:2px">{a.ticker}</div>'
             f'<div style="margin-top:10px">'
-            f'<span style="font-size:26px;font-weight:700;color:{_drop_color(a.drop_pct)}">'
+            f'<span style="font-size:26px;font-weight:700;color:{pct_color}">'
             f'{a.drop_pct:+.2f}%</span>'
             f'<span style="font-size:12px;color:#888;margin-left:8px">'
             f'{a.price_7d_ago:.2f} → {a.price_now:.2f} {a.currency}</span>'
             f'</div>'
-            f'{_fmt_52w_range(a)}'
+            f'<div style="margin-top:6px">{sub_info}</div>'
             f'</td>'
 
             f'<td style="border:none;padding:0 0 0 16px;vertical-align:top;text-align:right">'
@@ -533,7 +573,6 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
             f'</tr></table>'
             f'</div>'
 
-            # ── Kennzahlen ───────────────────────────────────────────────
             f'<div style="padding:12px 20px 16px;border-top:1px solid #f0f0f0">'
             f'<div style="font-size:10px;font-weight:700;color:#ccc;'
             f'text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Kennzahlen</div>'
@@ -544,9 +583,12 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
 
             f'{_interpret_fundamentals(a)}'
             f'{_trend_badge(a.trend)}'
-            f'{_news_block(a.news_headlines, a.news_reason, a.news_urls)}'
+            f'{_news_block(a.news_headlines, a.news_reason, a.news_urls, label=news_lbl)}'
             f'</div>'
         )
+
+    drop_cards = "".join(_build_card(a) for a in drop_alerts)
+    rise_cards  = "".join(_build_card(a) for a in rise_alerts)
 
     # ── Glossary ──────────────────────────────────────────────────────────
     def _grow(term: str, benchmark: str, description: str, shade: bool = False) -> str:
@@ -694,14 +736,17 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
       <div style="font-size:11px;font-weight:700;color:#7a9cc4;text-transform:uppercase;
                   letter-spacing:1.2px;margin-bottom:6px">Kursüberwachung</div>
       <div style="font-size:26px;font-weight:700;color:#fff;letter-spacing:-.3px">
-        ⚠&nbsp; Kurswarnung
+        📊&nbsp; Wöchentlicher Markt-Report
       </div>
       <div style="font-size:14px;color:#8ab0d0;margin-top:8px">
-        <strong style="color:#fff">{len(alerts)}</strong> Aktie(n) mit mehr als
-        <strong style="color:#fff">{threshold:.0f}%</strong> Wochenverlust
+        <span style="color:#ef9a9a">⚠ <strong style="color:#fff">{len(drop_alerts)}</strong>
+        Aktie(n) mit &gt;{threshold:.0f}% Wochenverlust</span>
+        &nbsp;·&nbsp;
+        <span style="color:#81c784">📈 <strong style="color:#fff">{len(rise_alerts)}</strong>
+        Aktie(n) mit &gt;{RISE_THRESHOLD_PCT:.0f}% Kursanstieg</span>
         &nbsp;·&nbsp;
         <strong style="color:#81c784">{len(buy_candidates)}</strong>
-        Kaufkandidat(en)&nbsp;≥&nbsp;50&nbsp;Punkte
+        Kaufkandidat(en) ≥&nbsp;50&nbsp;Punkte
       </div>
     </div>
 
@@ -710,10 +755,17 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
 
       {summary_section}
 
-      <div style="font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;
-                  letter-spacing:.8px;margin-bottom:14px">Detailanalyse</div>
+      {"" if not drop_alerts else
+        '<div style="font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;'
+        'letter-spacing:.8px;margin-bottom:14px">⚠ Kursverluste &gt;' + f'{threshold:.0f}' + '%</div>'
+        + drop_cards
+      }
 
-      {cards}
+      {"" if not rise_alerts else
+        '<div style="font-size:10px;font-weight:700;color:#4caf50;text-transform:uppercase;'
+        'letter-spacing:.8px;margin:28px 0 14px">📈 Kursanstieg &gt;' + f'{RISE_THRESHOLD_PCT:.0f}' + '%</div>'
+        + rise_cards
+      }
 
       {glossary}
 
@@ -735,21 +787,31 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
 # ── Plain-text fallback ───────────────────────────────────────────────────────
 
 def _build_plain(alerts: list[StockAlert], threshold: float) -> str:
-    buy = [a for a in alerts if a.is_buy_candidate]
+    drops = [a for a in alerts if not a.is_rise]
+    rises = [a for a in alerts if a.is_rise]
+    buy   = [a for a in drops if a.is_buy_candidate]
     lines = [
-        f"STOCK DROP ALERT — Weekly Drop > {threshold:.0f}%",
+        f"WÖCHENTLICHER MARKT-REPORT",
         "=" * 60,
-        f"{len(alerts)} stocks dropped. {len(buy)} scored ≥50/100 as buy candidates.",
+        f"{len(drops)} Verlust-Alert(s) >  {threshold:.0f}%  "
+        f"({len(buy)} Kaufkandidat(en))",
+        f"{len(rises)} Anstieg-Alert(s)  > {RISE_THRESHOLD_PCT:.0f}%",
         "",
     ]
-    for a in alerts:
-        flag = "★ BUY CANDIDATE" if a.is_buy_candidate else "  "
+
+    def _write_alert(a: StockAlert) -> None:
+        if a.is_rise:
+            flag = f"📈 KURSANSTIEG  {a.momentum_days}/5 Tage positiv"
+        elif a.is_buy_candidate:
+            flag = "★ KAUFKANDIDAT"
+        else:
+            flag = "  "
         lines.append(f"{flag}  {a.company} ({a.ticker})")
-        lines.append(f"   Drop: {a.drop_pct:+.2f}%  |  Score: {a.score}/100")
+        lines.append(f"   Veränderung: {a.drop_pct:+.2f}%  |  Score: {a.score}/100")
         lines.append(f"   ROE: {_fmt_pct(a.roe)}  |  D/E: {_fmt_float(a.debt_to_equity)}"
                      f"  |  FCF: {_fmt_fcf(a.free_cash_flow)}")
-        lines.append(f"   P/E: {_fmt_float(a.trailing_pe)}  |  RSI: {_fmt_float(a.rsi,1)}"
-                     f"  |  Analyst: {_fmt_rec(a.recommendation)}")
+        lines.append(f"   KGV: {_fmt_float(a.trailing_pe)}  |  RSI: {_fmt_float(a.rsi,1)}"
+                     f"  |  Analysten: {_fmt_rec(a.recommendation)}")
         low_note = (
             f"  |  52w Tief: {a.week_low_52:.2f} "
             f"(+{(a.price_now/a.week_low_52-1)*100:.1f}% darüber)"
@@ -762,9 +824,9 @@ def _build_plain(alerts: list[StockAlert], threshold: float) -> str:
         )
         if high_note or low_note:
             lines.append(f"   {high_note}{low_note}")
-        lines.append(f"   Sector ({a.sector or '?'}): {_sector_context(a)}")
+        lines.append(f"   Sektor ({a.sector or '?'}): {_sector_context(a)}")
         if a.trend:
-            lines.append(f"   Trend-Prognose: {a.trend.verdict}  (Konfidenz: {a.trend.confidence}%)")
+            lines.append(f"   Analyse: {a.trend.verdict}  (Konfidenz: {a.trend.confidence}%)")
             for s in a.trend.bull_signals:
                 lines.append(f"     ✓ {s}")
             for s in a.trend.bear_signals:
@@ -776,7 +838,20 @@ def _build_plain(alerts: list[StockAlert], threshold: float) -> str:
             for h in a.news_headlines:
                 lines.append(f"     • {h}")
         lines.append("")
-    lines.append("Prices from Yahoo Finance. Not financial advice.")
+
+    if drops:
+        lines.append(f"── KURSVERLUSTE > {threshold:.0f}% ──────────────────────────")
+        lines.append("")
+        for a in drops:
+            _write_alert(a)
+
+    if rises:
+        lines.append(f"── KURSANSTIEGE > {RISE_THRESHOLD_PCT:.0f}% ──────────────────────────")
+        lines.append("")
+        for a in rises:
+            _write_alert(a)
+
+    lines.append("Kurse von Yahoo Finance. Keine Anlageberatung.")
     return "\n".join(lines)
 
 
@@ -793,10 +868,13 @@ def send_alert(
     recipients: list[str],
     use_tls: bool = True,
 ) -> None:
-    buy = sum(1 for a in alerts if a.is_buy_candidate)
+    drops = [a for a in alerts if not a.is_rise]
+    rises = [a for a in alerts if a.is_rise]
+    buy   = sum(1 for a in drops if a.is_buy_candidate)
     subject = (
-        f"[Stock Alert] {len(alerts)} dropped >{threshold:.0f}% "
-        f"— {buy} buy candidate(s)"
+        f"[Stock Alert] ⚠ {len(drops)} Verlust(e) >{threshold:.0f}%"
+        f"  📈 {len(rises)} Anstieg(e) >{RISE_THRESHOLD_PCT:.0f}%"
+        f"  — {buy} Kaufkandidat(en)"
     )
 
     msg = MIMEMultipart("alternative")

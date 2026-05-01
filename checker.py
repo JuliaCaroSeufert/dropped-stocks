@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 import yfinance as yf
 
-from config import DROP_THRESHOLD_PCT
+from config import DROP_THRESHOLD_PCT, RISE_THRESHOLD_PCT
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,11 @@ class StockAlert:
     score:            int  = 0
     is_buy_candidate: bool = False
 
-    # ── Trend prediction ──────────────────────────────────────────────────
+    # ── Rise detection ────────────────────────────────────────────────────
+    is_rise:       bool = False   # True  → triggered by weekly gain ≥ RISE_THRESHOLD_PCT
+    momentum_days: int  = 0       # number of up-days in the last 5 trading days
+
+    # ── Trend / Momentum prediction ───────────────────────────────────────
     trend: TrendPrediction | None = None
 
     # ── News / Mögliche Gründe ────────────────────────────────────────────
@@ -309,6 +313,168 @@ def _trend_prediction(closes, volumes=None, week_low_52: float | None = None) ->
     )
 
 
+# ── Momentum prediction (for rising stocks) ──────────────────────────────────
+
+def _momentum_prediction(closes, volumes=None, week_high_52: float | None = None) -> TrendPrediction:
+    """
+    Analyses 7 signals to estimate whether the current uptrend is sustainable
+    or whether the stock has become overextended.
+    score > 0  → momentum intact (MOMENTUM_STARK)
+    score near 0 → mixed (GEMISCHT)
+    score < 0  → overheated / reversal risk (ÜBERHITZT)
+    """
+    bull: list[str] = []
+    bear: list[str] = []
+    score = 0
+    price_now = float(closes.iloc[-1])
+
+    # ── 1. RSI — ideal zone vs overbought ────────────────────────────────
+    rsi_now = _rsi(closes)
+    if rsi_now is not None:
+        if rsi_now > 80:
+            score -= 20
+            bear.append(f"RSI extrem überkauft ({rsi_now:.0f}) — Korrekturrisiko sehr hoch")
+        elif rsi_now > 72:
+            score -= 10
+            bear.append(f"RSI überkauft ({rsi_now:.0f}) — kurzfristige Erschöpfung möglich")
+        elif 55 <= rsi_now <= 72:
+            score += 20
+            bull.append(f"RSI in gesunder Stärke-Zone ({rsi_now:.0f}) — Momentum ohne Überhitzung")
+        elif 45 <= rsi_now < 55:
+            score += 8
+            bull.append(f"RSI neutral ({rsi_now:.0f}) — Aufwärtstrend noch früh")
+        else:
+            score -= 5
+            bear.append(f"RSI schwach ({rsi_now:.0f}) trotz Kursanstieg — Divergenz, Vorsicht")
+
+        if len(closes) >= 20:
+            rsi_prev = _rsi(closes.iloc[:-3])
+            if rsi_prev is not None and rsi_now > rsi_prev:
+                score += 8
+                bull.append(f"RSI steigt weiter ({rsi_prev:.0f} → {rsi_now:.0f}) — Momentum beschleunigt")
+
+    # ── 2. MACD ───────────────────────────────────────────────────────────
+    if len(closes) >= 26:
+        macd_line, sig_line, histogram = _macd(closes)
+        hist_now  = float(histogram.iloc[-1])
+        hist_prev = float(histogram.iloc[-4]) if len(histogram) >= 4 else hist_now
+
+        if float(macd_line.iloc[-1]) > float(sig_line.iloc[-1]):
+            score += 15
+            bull.append("MACD über Signallinie — Aufwärtsimpuls bestätigt")
+            if hist_now > hist_prev:
+                score += 8
+                bull.append("MACD-Histogramm wächst — Momentum nimmt zu")
+        else:
+            score -= 12
+            bear.append("MACD unter Signallinie — Aufwärtstrend verliert Kraft")
+
+    # ── 3. Bollinger Bands ────────────────────────────────────────────────
+    if len(closes) >= 20:
+        upper, ma_bb, lower = _bollinger(closes)
+        upper_val = float(upper.iloc[-1])
+        ma_val    = float(ma_bb.iloc[-1])
+
+        if price_now > upper_val:
+            score -= 12
+            bear.append(
+                f"Kurs über oberem Bollinger-Band ({upper_val:.2f}) — kurzfristig überdehnt"
+            )
+        elif price_now > ma_val:
+            score += 12
+            bull.append("Kurs oberhalb Bollinger-Mittellinie — Aufwärtsstruktur intakt")
+        else:
+            score -= 5
+            bear.append("Kurs unter Bollinger-Mittellinie trotz Wochenanstieg — kurzfristig schwächer")
+
+    # ── 4. Short-term moving averages ─────────────────────────────────────
+    if len(closes) >= 10:
+        ma5  = float(closes.rolling(5).mean().iloc[-1])
+        ma10 = float(closes.rolling(10).mean().iloc[-1])
+
+        if price_now > ma5 > ma10:
+            score += 15
+            bull.append("Kurs > 5-Tage-MA > 10-Tage-MA — bullische MA-Staffelung")
+        elif price_now > ma5:
+            score += 8
+            bull.append("Kurs über 5-Tage-Durchschnitt — kurzfristiger Aufwärtstrend")
+        else:
+            score -= 8
+            bear.append("Kurs unter 5-Tage-MA — Wochenanstieg durch Einzeltag getrieben")
+
+    # ── 5. Momentum consistency (last 3 trading days) ────────────────────
+    if len(closes) >= 4:
+        def pct_chg(s):
+            return (float(s.iloc[-1]) - float(s.iloc[0])) / float(s.iloc[0]) * 100
+
+        recent = pct_chg(closes.iloc[-4:])   # last 3 days
+        prev   = pct_chg(closes.iloc[-7:-3]) if len(closes) >= 7 else 0.0
+
+        if recent > 0 and prev > 0:
+            score += 12
+            bull.append(f"Anstieg hält an: +{prev:.1f}% Vorwoche → +{recent:.1f}% diese Woche")
+        elif recent > 0:
+            score += 6
+            bull.append(f"Letzte 3 Tage positiv (+{recent:.1f}%)")
+        else:
+            score -= 10
+            bear.append(f"Letzte 3 Tage rückläufig ({recent:+.1f}%) — Schwung lässt nach")
+
+    # ── 6. Volume analysis ────────────────────────────────────────────────
+    if volumes is not None and len(volumes) >= 5:
+        vols   = volumes.squeeze().iloc[-5:]
+        prices = closes.iloc[-5:]
+        up_vol = down_vol = 0.0
+        for i in range(1, len(prices)):
+            v = float(vols.iloc[i])
+            if float(prices.iloc[i]) > float(prices.iloc[i - 1]):
+                up_vol += v
+            elif float(prices.iloc[i]) < float(prices.iloc[i - 1]):
+                down_vol += v
+
+        if up_vol > down_vol * 1.3:
+            score += 12
+            bull.append("Deutlich höheres Volumen an Aufwärtstagen — institutionelle Nachfrage")
+        elif down_vol > up_vol * 1.2:
+            score -= 10
+            bear.append("Höheres Volumen an Abwärtstagen — Anstieg ohne Überzeugung")
+
+    # ── 7. 52-Wochen-Hoch proximity ──────────────────────────────────────
+    if week_high_52 is not None and week_high_52 > 0:
+        dist_pct = (week_high_52 - price_now) / week_high_52 * 100
+        if dist_pct < 3:
+            score -= 15
+            bear.append(
+                f"Kurs nahe 52-Wochen-Hoch ({week_high_52:.2f}) — starker charttechnischer Widerstand"
+            )
+        elif dist_pct < 10:
+            score -= 5
+            bear.append(
+                f"Noch {dist_pct:.0f}% bis 52-Wochen-Hoch ({week_high_52:.2f}) — Widerstandszone in Sicht"
+            )
+        elif dist_pct > 30:
+            score += 10
+            bull.append(
+                f"Noch {dist_pct:.0f}% bis 52-Wochen-Hoch — viel Luft nach oben"
+            )
+
+    # ── Verdict ───────────────────────────────────────────────────────────
+    confidence = min(abs(score) * 2, 100)
+    if score >= 30:
+        verdict = "MOMENTUM_STARK"
+    elif score <= -20:
+        verdict = "ÜBERHITZT"
+    else:
+        verdict = "GEMISCHT"
+
+    return TrendPrediction(
+        verdict=verdict,
+        confidence=confidence,
+        bull_signals=bull,
+        bear_signals=bear,
+    )
+
+
 # ── Price + volume fetch ──────────────────────────────────────────────────────
 
 def _weekly_change(ticker: str):
@@ -450,6 +616,47 @@ def _classify_reason(headlines: list[str]) -> str | None:
     return None
 
 
+_RISE_REASON_RULES: list[tuple[str, list[str]]] = [
+    ("Starke Quartalszahlen / Gewinnüberraschung",
+     ["earnings", "profit", "revenue", "beat", "surprise", "record", "quarterly",
+      "results", "eps", "above expectations", "strong quarter"]),
+    ("Analysten-Hochstufung / Kurszielerh öhung",
+     ["upgrade", "raise", "increase", "outperform", "price target", "buy rating",
+      "analyst", "overweight", "initiates"]),
+    ("Positive Produktankündigung / Innovation",
+     ["launch", "release", "product", "new", "announce", "partnership",
+      "agreement", "contract", "deal", "technology"]),
+    ("Übernahmespekulation / M&A",
+     ["acquisition", "merger", "takeover", "buyout", "bid", "acquire",
+      "deal", "strategic"]),
+    ("Starke Wirtschaftsdaten / Makrorückenwind",
+     ["economic", "gdp", "growth", "fed", "rate cut", "stimulus",
+      "recovery", "jobs", "consumer"]),
+    ("Breite Marktrally / Sektorrückenwind",
+     ["rally", "bull", "market gain", "sector surge", "risk-on",
+      "momentum", "higher", "surge"]),
+    ("Regulatorische Entlastung / Rechtlicher Erfolg",
+     ["approval", "approved", "clearance", "fda", "win", "settlement",
+      "regulatory", "green light"]),
+    ("Aktienrückkauf / Dividendenerhöhung",
+     ["buyback", "repurchase", "dividend", "increase", "shareholder",
+      "return", "yield"]),
+]
+
+
+def _classify_rise_reason(headlines: list[str]) -> str | None:
+    """Scores headlines for rise-context rules; returns the top match or None."""
+    text = " ".join(headlines).lower()
+    best_label, best_score = None, 0
+    for label, keywords in _RISE_REASON_RULES:
+        score = sum(1 for kw in keywords if kw in text)
+        if score > best_score:
+            best_score, best_label = score, label
+    if best_label:
+        return f"Wahrscheinlicher Grund: {best_label}"
+    return None
+
+
 def _translate_headlines(headlines: list[str]) -> list[str]:
     """Translates headlines to German via Google Translate (no API key needed)."""
     try:
@@ -490,6 +697,21 @@ _LLM_PROMPT = (
     '{{"grund": "...", "schlagzeilen": ["...", ...]}}'
 )
 
+_LLM_PROMPT_RISE = (
+    "Die Aktie {company} ist diese Woche um {pct:.1f}% gestiegen.\n\n"
+    "Aktuelle Schlagzeilen (Englisch):\n{headlines}\n\n"
+    "Aufgaben:\n"
+    "1. Übersetze jede Schlagzeile präzise ins Deutsche. "
+    "Quellangaben in Klammern beibehalten.\n"
+    "2. Schreibe EINEN prägnanten deutschen Satz der den wahrscheinlichsten "
+    "Grund für den Kursanstieg einordnet. Sei konkret — nenne den Auslöser "
+    "(z.B. starke Quartalszahlen, Analysten-Hochstufung, Produktankündigung, "
+    "Übernahmespekulation, FDA-Zulassung, positive Wirtschaftsdaten usw.). "
+    "Beginne mit 'Wahrscheinlicher Grund:'.\n\n"
+    "Antworte NUR als JSON, kein Markdown:\n"
+    '{{"grund": "...", "schlagzeilen": ["...", ...]}}'
+)
+
 
 def _parse_llm_json(text: str, raw_headlines: list[str]) -> tuple[list[str], str | None]:
     if text.startswith("```"):
@@ -499,16 +721,12 @@ def _parse_llm_json(text: str, raw_headlines: list[str]) -> tuple[list[str], str
 
 
 def _enrich_with_groq(
-    raw_headlines: list[str], company: str, drop_pct: float, api_key: str,
+    raw_headlines: list[str], prompt: str, api_key: str,
 ) -> tuple[list[str], str | None]:
     """Groq free tier: ~14 400 req/day, no credit card. groq.com → API Keys."""
     try:
         from groq import Groq  # pip install groq
         client = Groq(api_key=api_key)
-        prompt = _LLM_PROMPT.format(
-            company=company, pct=abs(drop_pct),
-            headlines="\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines)),
-        )
         resp = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
@@ -527,7 +745,7 @@ _gemini_model = None
 
 
 def _enrich_with_gemini(
-    raw_headlines: list[str], company: str, drop_pct: float, api_key: str,
+    raw_headlines: list[str], prompt: str, api_key: str,
 ) -> tuple[list[str], str | None]:
     """Gemini free tier (flash-lite): ~1 500 req/day. aistudio.google.com/apikey."""
     global _gemini_model
@@ -536,10 +754,6 @@ def _enrich_with_gemini(
         if _gemini_model is None:
             genai.configure(api_key=api_key)
             _gemini_model = genai.GenerativeModel("gemini-2.0-flash-lite")
-        prompt = _LLM_PROMPT.format(
-            company=company, pct=abs(drop_pct),
-            headlines="\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines)),
-        )
         response = _gemini_model.generate_content(prompt)
         return _parse_llm_json(response.text.strip(), raw_headlines)
     except ModuleNotFoundError:
@@ -553,10 +767,11 @@ def _enrich_with_gemini(
 def _enrich_news(
     raw_headlines: list[str],
     company: str,
-    drop_pct: float,
+    change_pct: float,
+    is_rise: bool = False,
 ) -> tuple[list[str], str | None]:
     """
-    Übersetzt Schlagzeilen ins Deutsche und ordnet den Kursrückgang ein.
+    Übersetzt Schlagzeilen ins Deutsche und ordnet die Kursbewegung ein.
     Reihenfolge:
       1. Groq  (GROQ_API_KEY)   — kostenlos, groq.com
       2. Gemini (GEMINI_API_KEY) — kostenlos, aistudio.google.com/apikey
@@ -565,18 +780,26 @@ def _enrich_news(
     if not raw_headlines:
         return [], None
 
+    tmpl = _LLM_PROMPT_RISE if is_rise else _LLM_PROMPT
+    prompt = tmpl.format(
+        company=company,
+        pct=abs(change_pct),
+        headlines="\n".join(f"{i+1}. {h}" for i, h in enumerate(raw_headlines)),
+    )
+
     for env_var, fn in [
         ("GROQ_API_KEY",   _enrich_with_groq),
         ("GEMINI_API_KEY", _enrich_with_gemini),
     ]:
         key = os.getenv(env_var)
         if key:
-            headlines_de, reason = fn(raw_headlines, company, drop_pct, key)
+            headlines_de, reason = fn(raw_headlines, prompt, key)
             if headlines_de is not None:
                 return headlines_de, reason
 
     # Offline fallback
-    return _translate_headlines(raw_headlines), _classify_reason(raw_headlines)
+    classifier = _classify_rise_reason if is_rise else _classify_reason
+    return _translate_headlines(raw_headlines), classifier(raw_headlines)
 
 
 def _sector_weekly_change(sector: str | None) -> float | None:
@@ -640,11 +863,62 @@ def _compute_score(a: StockAlert) -> int:
     return min(score, 100)
 
 
+def _compute_rise_score(a: StockAlert) -> int:
+    """
+    Quality + momentum score for rising stocks (0–100).
+    Rewards solid fundamentals, RSI in healthy range, sector tailwind,
+    analyst backing, and continuity of the upward move.
+    """
+    score = 0
+
+    # Fundamental quality (same as drop score)
+    if a.roe is not None:
+        if   a.roe >= 0.25: score += 20
+        elif a.roe >= 0.15: score += 12
+        elif a.roe >= 0.10: score += 6
+        elif a.roe > 0:     score += 2
+
+    if a.free_cash_flow is not None and a.free_cash_flow > 0:
+        score += 15
+
+    if a.debt_to_equity is not None:
+        if   a.debt_to_equity < 80:  score += 10
+        elif a.debt_to_equity < 150: score += 5
+
+    # RSI: reward healthy momentum zone, penalise overbought
+    if a.rsi is not None:
+        if   55 <= a.rsi <= 72: score += 15   # ideal: strong but not exhausted
+        elif 45 <= a.rsi < 55:  score += 8    # early, still room
+        elif a.rsi > 78:        score -= 15   # overbought, reversal risk
+
+    # Sector tailwind (sector also rising = macro support)
+    if a.sector_drop_pct is not None:
+        if   a.sector_drop_pct >= 3:  score += 15
+        elif a.sector_drop_pct >= 1:  score += 8
+        elif a.sector_drop_pct >= 0:  score += 3
+
+    # Analyst backing
+    rec = (a.recommendation or "").lower()
+    if   rec in ("buy", "strong_buy", "outperform"): score += 15
+    elif rec in ("hold", "neutral", "market_perform"): score += 5
+
+    # Gross margin (moat indicator)
+    if a.gross_margins is not None and a.gross_margins >= 0.40:
+        score += 5
+
+    # Continuity of the rise (momentum_days out of last 5)
+    if   a.momentum_days >= 4: score += 10
+    elif a.momentum_days == 3: score += 5
+
+    return min(score, 100)
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def check_watchlist(watchlist: dict[str, str]) -> list[StockAlert]:
     _sector_cache.clear()
-    alerts:  list[StockAlert] = []
+    drops:   list[StockAlert] = []
+    rises:   list[StockAlert] = []
     failed:  list[str]        = []
     total  = len(watchlist)
     log_every = max(1, total // 10)   # log every ~10%
@@ -654,51 +928,85 @@ def check_watchlist(watchlist: dict[str, str]) -> list[StockAlert]:
     for done, (ticker, company) in enumerate(watchlist.items(), start=1):
         if done % log_every == 0 or done == total:
             logger.info(
-                "%d/%d Stocks geprüft (%.0f%%) — %d Alert(s) bisher",
-                done, total, done / total * 100, len(alerts),
+                "%d/%d Stocks geprüft (%.0f%%) — %d Verlust-Alert(s), %d Anstieg-Alert(s) bisher",
+                done, total, done / total * 100, len(drops), len(rises),
             )
         try:
             price_7d_ago, price_now, currency, closes, volumes = _weekly_change(ticker)
-            drop_pct = (price_now - price_7d_ago) / price_7d_ago * 100
+            change_pct = (price_now - price_7d_ago) / price_7d_ago * 100
 
-            if drop_pct > -DROP_THRESHOLD_PCT:
+            is_drop = change_pct <= -DROP_THRESHOLD_PCT
+            is_rise = change_pct >= RISE_THRESHOLD_PCT
+
+            if not is_drop and not is_rise:
                 continue
+
+            # For rises: check continuity filter (≥ 3 of last 5 trading days up)
+            momentum_days = 0
+            if is_rise:
+                n = min(6, len(closes))
+                momentum_days = sum(
+                    1 for i in range(1, n)
+                    if float(closes.iloc[-i]) > float(closes.iloc[-i - 1])
+                )
+                if momentum_days < 3:
+                    continue   # spike, not a sustained trend
 
             fund  = _fetch_fundamentals(ticker)
             rsi   = _rsi(closes)
-            trend = _trend_prediction(closes, volumes, week_low_52=fund.get("week_low_52"))
+
+            if is_rise:
+                trend = _momentum_prediction(closes, volumes, week_high_52=fund.get("week_high_52"))
+            else:
+                trend = _trend_prediction(closes, volumes, week_low_52=fund.get("week_low_52"))
 
             alert = StockAlert(
-                ticker       = ticker,
-                company      = company,
-                price_7d_ago = price_7d_ago,
-                price_now    = price_now,
-                drop_pct     = drop_pct,
-                currency     = currency,
-                rsi          = rsi,
-                trend        = trend,
+                ticker        = ticker,
+                company       = company,
+                price_7d_ago  = price_7d_ago,
+                price_now     = price_now,
+                drop_pct      = change_pct,
+                currency      = currency,
+                rsi           = rsi,
+                trend         = trend,
+                is_rise       = is_rise,
+                momentum_days = momentum_days,
                 **fund,
             )
             alert.sector_drop_pct  = _sector_weekly_change(alert.sector)
-            alert.score            = _compute_score(alert)
-            alert.is_buy_candidate = alert.score >= 50
+
+            if is_rise:
+                alert.score            = _compute_rise_score(alert)
+                alert.is_buy_candidate = False
+            else:
+                alert.score            = _compute_score(alert)
+                alert.is_buy_candidate = alert.score >= 50
+
             raw_news, news_urls = _fetch_news(ticker)
-            headlines_de, reason = _enrich_news(raw_news, company, drop_pct)
+            headlines_de, reason = _enrich_news(raw_news, company, change_pct, is_rise=is_rise)
             alert.news_headlines = headlines_de
             alert.news_urls      = news_urls
             alert.news_reason    = reason
 
-            alerts.append(alert)
+            if is_rise:
+                rises.append(alert)
+            else:
+                drops.append(alert)
 
         except Exception as exc:
             failed.append(ticker)
             logger.debug("Fehler bei %s (%s): %s", ticker, company, exc)
 
+    drops.sort(key=lambda a: a.drop_pct)          # worst drop first
+    rises.sort(key=lambda a: a.drop_pct, reverse=True)  # strongest rise first
+
+    all_alerts = drops + rises
+
     logger.info(
-        "Analyse abgeschlossen: %d/%d Stocks geprüft — %d Alert(s), %d Fehler%s",
-        total - len(failed), total, len(alerts), len(failed),
+        "Analyse abgeschlossen: %d/%d Stocks geprüft — "
+        "%d Verlust-Alert(s), %d Anstieg-Alert(s), %d Fehler%s",
+        total - len(failed), total, len(drops), len(rises), len(failed),
         f" ({', '.join(failed[:5])}{'…' if len(failed) > 5 else ''})" if failed else "",
     )
 
-    alerts.sort(key=lambda a: a.drop_pct)
-    return alerts
+    return all_alerts
