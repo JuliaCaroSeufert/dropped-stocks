@@ -432,9 +432,10 @@ def _momentum_days_badge(days: int) -> str:
 # ── HTML builder ──────────────────────────────────────────────────────────────
 
 def _build_html(alerts: list[StockAlert], threshold: float) -> str:
-    drop_alerts = [a for a in alerts if not a.is_rise]
-    rise_alerts = [a for a in alerts if a.is_rise]
-    buy_candidates = [a for a in drop_alerts if a.is_buy_candidate]
+    # Only show alerts with a positive rating (score ≥ 50)
+    drop_alerts    = [a for a in alerts if not a.is_rise and a.is_buy_candidate]
+    rise_alerts    = [a for a in alerts if a.is_rise and a.score >= 50]
+    buy_candidates = drop_alerts  # all shown drops are already buy candidates
 
     # ── Metrics row helper ────────────────────────────────────────────────
     def _mrow(lbl1: str, val1: str, lbl2: str, val2: str, shade: bool = False) -> str:
@@ -787,9 +788,9 @@ def _build_html(alerts: list[StockAlert], threshold: float) -> str:
 # ── Plain-text fallback ───────────────────────────────────────────────────────
 
 def _build_plain(alerts: list[StockAlert], threshold: float) -> str:
-    drops = [a for a in alerts if not a.is_rise]
-    rises = [a for a in alerts if a.is_rise]
-    buy   = [a for a in drops if a.is_buy_candidate]
+    drops = [a for a in alerts if not a.is_rise and a.is_buy_candidate]
+    rises = [a for a in alerts if a.is_rise and a.score >= 50]
+    buy   = drops  # all shown drops are buy candidates
     lines = [
         f"WÖCHENTLICHER MARKT-REPORT",
         "=" * 60,
@@ -868,13 +869,11 @@ def send_alert(
     recipients: list[str],
     use_tls: bool = True,
 ) -> None:
-    drops = [a for a in alerts if not a.is_rise]
-    rises = [a for a in alerts if a.is_rise]
-    buy   = sum(1 for a in drops if a.is_buy_candidate)
+    buy_drops = [a for a in alerts if not a.is_rise and a.is_buy_candidate]
+    buy_rises = [a for a in alerts if a.is_rise and a.score >= 50]
     subject = (
-        f"[Stock Alert] ⚠ {len(drops)} Verlust(e) >{threshold:.0f}%"
-        f"  📈 {len(rises)} Anstieg(e) >{RISE_THRESHOLD_PCT:.0f}%"
-        f"  — {buy} Kaufkandidat(en)"
+        f"[Stock Alert] ⚠ {len(buy_drops)} Kaufkandidat(en) nach Verlust"
+        f"  📈 {len(buy_rises)} Anstieg(e) mit positivem Rating"
     )
 
     msg = MIMEMultipart("alternative")
