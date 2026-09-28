@@ -119,10 +119,17 @@ könnte**.
 - **Robotik, Automation & E-Mobilität** (Industrieautomation, EV, Batterien)
 - **Clean Energy, Biotech & Quantum** (Erneuerbare, Genomics, Quantencomputing)
 
-Das Universum ist eine kuratierte Liste aussichtsreicher Firmen in
-`growth_universe.py`. Optional kann per `NEWSTICKER_DISCOVER=true` zusätzlich die
-große Watchlist automatisch nach Firmen in Wachstumsbranchen durchsucht werden —
-so werden auch neue/aufstrebende Namen in wachsenden Sektoren aufgegriffen.
+Das Universum ist **rollierend**: eine kuratierte Basis aussichtsreicher Firmen
+(`growth_universe.py`) **plus** alle Firmen aus der großen Watchlist (~2.000),
+deren Branche zu einem Zukunftsthema passt (Halbleiter, Software, Robotik, Solar,
+Biotech …). So werden automatisch auch neue/aufstrebende Namen aufgegriffen, die
+in wachsende Sektoren hineinwachsen — nicht nur eine feste Liste.
+
+Diese dynamische Sektor-Erkennung ist per Default an (`NEWSTICKER_DISCOVER=true`).
+Ein kompletter Lauf dauert dadurch **~30–60 Minuten** (ein yfinance-Abruf pro
+Firma) — bei einem wöchentlichen Job unkritisch. Für einen **schnellen Testlauf**
+`NEWSTICKER_DISCOVER=false` (nur kuratierte Liste, ~1–2 Min) oder
+`NEWSTICKER_DISCOVER_LIMIT=300` setzen.
 
 ### Zukunfts-Score (0–100)
 

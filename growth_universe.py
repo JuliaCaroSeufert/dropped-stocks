@@ -144,11 +144,15 @@ def _match_theme(industry: str | None) -> str | None:
     return None
 
 
-def _discover_from_watchlist(limit: int = 400) -> dict[str, tuple[str, str]]:
+def _discover_from_watchlist(limit: int = 0) -> dict[str, tuple[str, str]]:
     """
     Durchsucht die große Watchlist aus config.py und ergänzt Firmen, deren
-    Branche auf ein Zukunftsthema passt. Kostet je einen yfinance-info-Aufruf,
-    daher per `limit` gedeckelt. Fehler werden still übersprungen.
+    Branche auf ein Zukunftsthema passt. Kostet je einen yfinance-info-Aufruf.
+
+    `limit <= 0`  → komplette Watchlist scannen (rollierendes Universum).
+    `limit  > 0`  → nur die ersten `limit` Ticker (schnellerer Testlauf).
+
+    Fehler werden still übersprungen.
     """
     found: dict[str, tuple[str, str]] = {}
     try:
@@ -158,7 +162,9 @@ def _discover_from_watchlist(limit: int = 400) -> dict[str, tuple[str, str]]:
         logger.warning("Dynamische Erkennung nicht möglich: %s", exc)
         return found
 
-    tickers = [t for t in WATCHLIST if t not in _SEED][:limit]
+    tickers = [t for t in WATCHLIST if t not in _SEED]
+    if limit > 0:
+        tickers = tickers[:limit]
     logger.info("Dynamische Sektor-Erkennung: prüfe %d Watchlist-Ticker …", len(tickers))
     for ticker in tickers:
         try:
@@ -177,17 +183,21 @@ def build_growth_universe(discover: bool | None = None) -> dict[str, tuple[str, 
     Baut das komplette Zukunfts-Universum.
 
     `discover` steuert die dynamische Watchlist-Erkennung:
-      • None  → per Umgebungsvariable NEWSTICKER_DISCOVER (Default: aus)
+      • None  → per Umgebungsvariable NEWSTICKER_DISCOVER (Default: AN)
       • True  → immer einbeziehen
       • False → nur die kuratierte Liste
+
+    Standard ist ein **rollierendes** Universum: die kuratierte Basis PLUS alle
+    Firmen aus der großen Watchlist, deren Branche zu einem Zukunftsthema passt.
     """
     universe = dict(_SEED)
 
     if discover is None:
-        discover = os.getenv("NEWSTICKER_DISCOVER", "false").lower() == "true"
+        discover = os.getenv("NEWSTICKER_DISCOVER", "true").lower() == "true"
 
     if discover:
-        limit = int(os.getenv("NEWSTICKER_DISCOVER_LIMIT", "400"))
+        # Default 0 = komplette Watchlist scannen (rollierend)
+        limit = int(os.getenv("NEWSTICKER_DISCOVER_LIMIT", "0"))
         universe.update(_discover_from_watchlist(limit=limit))
 
     return universe
