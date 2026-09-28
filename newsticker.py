@@ -45,6 +45,9 @@ logger = logging.getLogger(__name__)
 # ── Tuning-Parameter (per .env überschreibbar) ────────────────────────────────
 NEWSTICKER_SCORE_THRESHOLD = int(os.getenv("NEWSTICKER_SCORE_THRESHOLD", "62"))
 NEWSTICKER_MAX_PICKS       = int(os.getenv("NEWSTICKER_MAX_PICKS", "12"))
+# Obergrenze Marktkapitalisierung: schon fertige Mega-Caps ("Nvidia von heute")
+# werden ausgeschlossen. Default 250 Mrd. USD. 0 = keine Grenze.
+NEWSTICKER_MAX_MARKETCAP   = float(os.getenv("NEWSTICKER_MAX_MARKETCAP", str(250e9)))
 
 
 # ── Datentyp ──────────────────────────────────────────────────────────────────
@@ -66,9 +69,12 @@ class GrowthPick:
     industry:         str   | None = None
     recommendation:   str   | None = None
     target_mean:      float | None = None
-    num_analysts:     int   | None = None
+    num_analysts:     int   | None = None   # Analysten-Abdeckung (wenige = unentdeckt)
     perf_6m_pct:      float | None = None   # 6-Monats-Kursentwicklung in %
     above_200d:       bool  | None = None   # Kurs über 200-Tage-Linie?
+    week_high_52:     float | None = None
+    week_low_52:      float | None = None
+    pct_below_high:   float | None = None   # % unter dem 52-Wochen-Hoch (Luft nach oben)
 
     # Bewertung
     score:        int  = 0
@@ -78,7 +84,8 @@ class GrowthPick:
     # Text (Deutsch)
     summary_en:  str | None = None          # Roh-Geschäftsbeschreibung (EN)
     was:         str | None = None          # Was macht die Firma?
-    warum:       str | None = None          # Warum ist die Aktie interessant?
+    these:       str | None = None          # Wachstumsthese: wohin + was ist NICHT eingepreist
+    katalysator: str | None = None          # Konkreter Auslöser der nächsten 1-3 Jahre
     risiken:     str | None = None          # Wichtigstes Risiko
 
     def __str__(self) -> str:
@@ -118,6 +125,8 @@ def _fetch_metrics(ticker: str) -> dict:
         recommendation = g("recommendationKey"),
         target_mean    = g("targetMeanPrice"),
         num_analysts   = g("numberOfAnalystOpinions"),
+        week_high_52   = g("fiftyTwoWeekHigh"),
+        week_low_52    = g("fiftyTwoWeekLow"),
         summary_en     = g("longBusinessSummary"),
     )
 
@@ -139,68 +148,79 @@ def _fetch_metrics(ticker: str) -> dict:
     except Exception as exc:
         logger.debug("history() für %s fehlgeschlagen: %s", ticker, exc)
 
+    # Abstand zum 52-Wochen-Hoch (wie viel Luft nach oben ist noch nicht gelaufen?)
+    hi, px = out.get("week_high_52"), out.get("price")
+    if hi and px and hi > 0:
+        out["pct_below_high"] = (hi - px) / hi * 100
+
     return out
 
 
 # ── Scoring ───────────────────────────────────────────────────────────────────
 def _score(pick: GrowthPick) -> tuple[int, dict]:
+    """
+    „Nvidia 2020"-Profil: nicht das schon gelaufene Riesenunternehmen, sondern
+    das früh-stadige, noch unterentdeckte mit ungepreistem Potenzial.
+
+    Belohnt wird deshalb bewusst: hohes Umsatzwachstum, Skalierbarkeit, KLEINE
+    Größe, GERINGE Analystenabdeckung (unentdeckt) und noch Luft nach oben
+    (nicht schon am Allzeithoch). Momentum-Chasing wird NICHT belohnt.
+    """
     parts: dict[str, int] = {}
 
-    # 1) Umsatzwachstum — das wichtigste Signal (bis 30)
+    # 1) Umsatzwachstum — der Wachstumsmotor (bis 30)
     rg = pick.revenue_growth
     if rg is not None:
-        if   rg >= 0.40: parts["Umsatzwachstum"] = 30
-        elif rg >= 0.25: parts["Umsatzwachstum"] = 24
-        elif rg >= 0.15: parts["Umsatzwachstum"] = 18
-        elif rg >= 0.08: parts["Umsatzwachstum"] = 10
+        if   rg >= 0.50: parts["Umsatzwachstum"] = 30
+        elif rg >= 0.30: parts["Umsatzwachstum"] = 25
+        elif rg >= 0.20: parts["Umsatzwachstum"] = 19
+        elif rg >= 0.10: parts["Umsatzwachstum"] = 11
         elif rg >  0:    parts["Umsatzwachstum"] = 4
 
-    # 2) Bruttomarge / Skalierbarkeit (bis 20)
+    # 2) Bruttomarge / Skalierbarkeit (bis 15) — Software/IP skaliert billig
     gm = pick.gross_margins
     if gm is not None:
-        if   gm >= 0.60: parts["Bruttomarge"] = 20
-        elif gm >= 0.40: parts["Bruttomarge"] = 14
-        elif gm >= 0.25: parts["Bruttomarge"] = 8
+        if   gm >= 0.70: parts["Bruttomarge"] = 15
+        elif gm >= 0.50: parts["Bruttomarge"] = 11
+        elif gm >= 0.35: parts["Bruttomarge"] = 7
         elif gm >  0:    parts["Bruttomarge"] = 3
 
-    # 3) Sektor-/Themen-Rückenwind (bis 20) — Zugehörigkeit zu einem
-    #    Zukunftsthema plus positives Gewinnwachstum als Bestätigung
-    tail = 12
-    eg = pick.earnings_growth
-    if eg is not None and eg > 0.15:
-        tail += 8
-    elif eg is not None and eg > 0:
-        tail += 4
-    parts["Themen-Rückenwind"] = min(tail, 20)
-
-    # 4) Kurs-Momentum (bis 15)
-    mom = 0
-    if pick.above_200d:
-        mom += 7
-    if pick.perf_6m_pct is not None:
-        if   pick.perf_6m_pct >= 40: mom += 8
-        elif pick.perf_6m_pct >= 15: mom += 6
-        elif pick.perf_6m_pct >  0:  mom += 3
-    if mom:
-        parts["Momentum"] = min(mom, 15)
-
-    # 5) Marktkapitalisierungs-Fenster (bis 8) — Mid/Large bevorzugt,
-    #    Billionen-Konzerne ("schon das fertige Nvidia") leicht abgewertet
+    # 3) Frühphase / „noch klein" (bis 22) — je kleiner, desto mehr Verzehn-
+    #    fachungs-Potenzial. Riesenkonzerne (schon das fertige Nvidia) → 0.
     mc = pick.market_cap
     if mc is not None:
-        if   2e9  <= mc < 2e11:  parts["Größe"] = 8    # 2 Mrd – 200 Mrd = Sweet Spot
-        elif 5e8  <= mc < 2e9:   parts["Größe"] = 6    # Small-Cap: Potenzial + Risiko
-        elif 2e11 <= mc < 1e12:  parts["Größe"] = 4
-        elif mc  >= 1e12:        parts["Größe"] = 2    # Mega-Cap
-        # < 500 Mio: zu klein/illiquide → 0
+        if   3e8  <= mc < 2e9:   parts["Frühphase"] = 22   # 0,3–2 Mrd: echte Frühphase
+        elif 2e9  <= mc < 1e10:  parts["Frühphase"] = 18   # 2–10 Mrd
+        elif 1e10 <= mc < 5e10:  parts["Frühphase"] = 12   # 10–50 Mrd
+        elif 5e10 <= mc < 1.5e11:parts["Frühphase"] = 6    # 50–150 Mrd
+        elif 1.5e11<= mc < 2.5e11:parts["Frühphase"] = 2
+        # ≥ 250 Mrd wird ohnehin herausgefiltert (siehe scan)
 
-    # 6) Analysten-Kursziel-Upside (bis 12)
+    # 4) Unentdeckt — geringe Analystenabdeckung (bis 12).
+    #    Wenige/keine Analysten = noch nicht von der Wall Street durchgekaut.
+    na = pick.num_analysts
+    if na is None or na <= 6:  parts["Unentdeckt"] = 12
+    elif na <= 12:             parts["Unentdeckt"] = 8
+    elif na <= 20:             parts["Unentdeckt"] = 4
+
+    # 5) Luft nach oben (bis 13) — GEGENTEIL von Momentum-Chasing.
+    #    Am Allzeithoch ist viel eingepreist; eine gesunde Konsolidierung
+    #    (deutlich unter Hoch, aber kein Totalabsturz) lässt Raum.
+    pbh = pick.pct_below_high
+    if pbh is not None:
+        if   15 <= pbh <= 50: parts["Luft nach oben"] = 13  # Sweet Spot
+        elif 50 <  pbh <= 70: parts["Luft nach oben"] = 8
+        elif 5  <= pbh < 15:  parts["Luft nach oben"] = 6   # nahe Hoch = teils gepreist
+        elif pbh > 70:        parts["Luft nach oben"] = 5   # tief gefallen = spekulativ
+        else:                 parts["Luft nach oben"] = 3   # am Hoch
+
+    # 6) Zukunftsthema (bis 8) — alle Kandidaten sind thematisch positioniert
+    parts["Zukunftsthema"] = 8
+
+    # Analysten-Kursziel nur als Zusatzinfo (fließt NICHT in den Score, damit
+    # „schon entdeckte" Werte keinen Vorteil bekommen)
     if pick.target_mean and pick.price and pick.price > 0:
-        upside = (pick.target_mean - pick.price) / pick.price * 100
-        pick.upside_pct = upside
-        if   upside >= 30: parts["Kursziel-Upside"] = 12
-        elif upside >= 15: parts["Kursziel-Upside"] = 8
-        elif upside >= 5:  parts["Kursziel-Upside"] = 4
+        pick.upside_pct = (pick.target_mean - pick.price) / pick.price * 100
 
     total = min(sum(parts.values()), 100)
     return total, parts
@@ -208,17 +228,29 @@ def _score(pick: GrowthPick) -> tuple[int, dict]:
 
 # ── LLM-Begründung ──────────────────────────────────────────────────────────
 _PROMPT = (
-    "Du bist ein nüchterner Aktien-Analyst. Firma: {company} ({ticker}), "
-    "Zukunftsthema: {theme}, Branche: {industry}.\n"
-    "Kennzahlen: Umsatzwachstum {rg}, Bruttomarge {gm}, "
-    "Marktkapitalisierung {mc}, 6-Monats-Kurs {perf}.\n"
+    "Du bist ein Venture-/Growth-Analyst auf der Suche nach dem NÄCHSTEN Nvidia "
+    "im Frühstadium — also einer Firma, BEVOR der große Anstieg eingepreist ist, "
+    "nicht dem heutigen Riesenkonzern.\n\n"
+    "Firma: {company} ({ticker}), Zukunftsthema: {theme}, Branche: {industry}.\n"
+    "Kennzahlen: Umsatzwachstum {rg}, Bruttomarge {gm}, Marktkapitalisierung {mc} "
+    "(noch klein!), {analysts} Analysten-Abdeckung, {below} unter 52-Wochen-Hoch.\n"
     "Geschäftsbeschreibung (Englisch):\n{summary}\n\n"
+    "Wichtig: Erkläre NICHT nur, dass der Sektor wächst (das ist eingepreist), "
+    "sondern WOHIN diese konkrete Firma wachsen könnte und WAS der Markt heute "
+    "noch NICHT einpreist. Sei konkret zum adressierbaren Markt (TAM), zum "
+    "Skalierungspfad und zum Auslöser.\n\n"
     "Antworte NUR als JSON auf Deutsch, kein Markdown, keine Anlageberatung:\n"
-    '{{"was": "2-3 Sätze: was die Firma konkret macht und womit sie Geld '
-    'verdient", "warum": "2-4 Sätze: warum die Aktie in diesem Zukunftssektor '
-    'langfristig interessant sein könnte — konkret auf Wachstumstreiber, '
-    'Wettbewerbsvorteil und Sektortrend eingehen", "risiken": "1 Satz zum '
-    'wichtigsten Risiko"}}'
+    '{{'
+    '"was": "2 Sätze: was die Firma konkret macht und womit sie heute Geld verdient", '
+    '"these": "3-4 Sätze: die Wachstumsthese. Wie groß ist der adressierbare Markt, '
+    'wohin könnte Umsatz/Firma in 3-5 Jahren wachsen, und WELCHER Teil davon ist '
+    'aktuell noch NICHT im Kurs eingepreist? Warum ist das ein Frühphasen-/'
+    '\'Nvidia-2020\'-Profil (noch klein, unterschätzt)?", '
+    '"katalysator": "1-2 Sätze: der konkrete Auslöser der nächsten 1-3 Jahre, der '
+    'die These zünden könnte (z.B. neues Produkt, Design-Win, Zulassung, '
+    'Kapazitätsausbau, Kipppunkt zur Profitabilität)", '
+    '"risiken": "1 Satz zum wichtigsten Risiko dieser Frühphasen-Wette"'
+    '}}'
 )
 
 
@@ -293,17 +325,25 @@ def _offline_text(pick: GrowthPick) -> dict:
             was = GoogleTranslator(source="auto", target="de").translate(was[:1500])
         except Exception:
             pass
-    rg = f"{pick.revenue_growth*100:+.0f}% Umsatzwachstum" if pick.revenue_growth else "solides Wachstum"
-    warum = (
-        f"Das Unternehmen ist im Zukunftsthema „{pick.theme}“ positioniert und zeigt "
-        f"{rg}. Sektoren wie dieser profitieren strukturell von mehrjährigen Trends "
-        f"(Digitalisierung, Automatisierung, Elektrifizierung), was langfristiges "
-        f"Nachfragewachstum stützen kann."
+    rg = f"{pick.revenue_growth*100:+.0f}% Umsatzwachstum" if pick.revenue_growth else "hohes Wachstum"
+    groesse = _fmt_mc(pick.market_cap)
+    these = (
+        f"Mit nur {groesse} Marktkapitalisierung ist die Firma im Zukunftsthema "
+        f"„{pick.theme}“ noch klein und zeigt {rg}. Sollte sie ihren Nischenmarkt "
+        f"weiter erobern, ist ein Vielfaches des heutigen Umsatzes denkbar — ein "
+        f"Skalierungspfad, den der Markt bei so geringer Größe und Analystenabdeckung "
+        f"oft noch nicht voll einpreist (Frühphasen-Profil)."
+    )
+    kat = (
+        "Ein Katalysator wären beschleunigtes Umsatzwachstum, ein großer Kunden-/"
+        "Design-Win oder der Kipppunkt zur Profitabilität."
     )
     return {
         "was": was or f"{pick.company} ist im Bereich {pick.industry or pick.theme} tätig.",
-        "warum": warum,
-        "risiken": "Hohe Bewertung und Wettbewerbsdruck können zu starker Kursvolatilität führen.",
+        "these": these,
+        "katalysator": kat,
+        "risiken": "Frühphasen-Wette: hohe Bewertung, mögliche Verwässerung und "
+                   "Wettbewerbsdruck können zu starker Volatilität führen.",
     }
 
 
@@ -314,7 +354,8 @@ def _enrich(pick: GrowthPick) -> None:
         rg=f"{pick.revenue_growth*100:+.0f}%" if pick.revenue_growth is not None else "unbekannt",
         gm=f"{pick.gross_margins*100:.0f}%" if pick.gross_margins is not None else "unbekannt",
         mc=_fmt_mc(pick.market_cap),
-        perf=f"{pick.perf_6m_pct:+.0f}%" if pick.perf_6m_pct is not None else "unbekannt",
+        analysts=pick.num_analysts if pick.num_analysts is not None else "sehr wenige",
+        below=f"{pick.pct_below_high:.0f}%" if pick.pct_below_high is not None else "unbekannt",
         summary=(pick.summary_en or "keine")[:2000],
     )
 
@@ -329,9 +370,10 @@ def _enrich(pick: GrowthPick) -> None:
     if not data:
         data = _offline_text(pick)
 
-    pick.was     = data.get("was")
-    pick.warum   = data.get("warum")
-    pick.risiken = data.get("risiken")
+    pick.was         = data.get("was")
+    pick.these       = data.get("these") or data.get("warum")
+    pick.katalysator = data.get("katalysator")
+    pick.risiken     = data.get("risiken")
 
 
 # ── Haupt-Scan ────────────────────────────────────────────────────────────────
@@ -362,6 +404,11 @@ def scan_growth_candidates(
             m = _fetch_metrics(ticker)
             if not m.get("price"):
                 continue
+            # Schon fertige Mega-Caps ausschließen — wir suchen „Nvidia 2020",
+            # nicht „Nvidia heute".
+            mc = m.get("market_cap")
+            if NEWSTICKER_MAX_MARKETCAP and mc and mc > NEWSTICKER_MAX_MARKETCAP:
+                continue
             pick = GrowthPick(
                 ticker=ticker,
                 company=m.get("company") or company,
@@ -380,6 +427,9 @@ def scan_growth_candidates(
                 num_analysts=m.get("num_analysts"),
                 perf_6m_pct=m.get("perf_6m_pct"),
                 above_200d=m.get("above_200d"),
+                week_high_52=m.get("week_high_52"),
+                week_low_52=m.get("week_low_52"),
+                pct_below_high=m.get("pct_below_high"),
                 summary_en=m.get("summary_en"),
             )
             pick.score, pick.score_parts = _score(pick)

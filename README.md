@@ -131,13 +131,28 @@ Firma) — bei einem wöchentlichen Job unkritisch. Für einen **schnellen Testl
 `NEWSTICKER_DISCOVER=false` (nur kuratierte Liste, ~1–2 Min) oder
 `NEWSTICKER_DISCOVER_LIMIT=300` setzen.
 
-### Zukunfts-Score (0–100)
+### Zukunfts-Score (0–100) — auf „Nvidia 2020" ausgerichtet
 
-Jede Aktie wird bewertet nach: **Umsatzwachstum** (bis 30), **Bruttomarge/
-Skalierung** (bis 20), **Sektor-/Themen-Rückenwind** (bis 20), **Kurs-Momentum**
-(bis 15), **Marktkapitalisierungs-Fenster** (bis 8, Mid-Caps bevorzugt) und
-**Analysten-Kursziel-Upside** (bis 12). Gemeldet werden **so viele Kandidaten wie
-überzeugend sind** (Score ≥ `NEWSTICKER_SCORE_THRESHOLD`, Default 62), höchstens
+Das Ziel ist bewusst **nicht** das schon gelaufene Riesenunternehmen, sondern das
+**früh-stadige, noch unterentdeckte** mit ungepreistem Potenzial. Der Score
+belohnt daher:
+
+- **Umsatzwachstum** (bis 30) — der Wachstumsmotor
+- **Bruttomarge / Skalierbarkeit** (bis 15)
+- **Frühphase / „noch klein"** (bis 22) — kleine Marktkapitalisierung = mehr Hebel
+- **Unentdeckt** (bis 12) — *geringe* Analystenabdeckung (noch nicht durchgekaut)
+- **Luft nach oben** (bis 13) — deutlich unter dem 52-Wochen-Hoch statt am Allzeithoch
+  (das Gegenteil von Momentum-Chasing)
+- **Zukunftsthema** (bis 8)
+
+Schon fertige **Mega-Caps werden komplett ausgeschlossen** (Standard: Marktkap.
+über 250 Mrd. USD, per `NEWSTICKER_MAX_MARKETCAP` einstellbar) — „Nvidia 2020"
+statt „Nvidia heute".
+
+Jede gemeldete Aktie enthält eine **Wachstumsthese** (wohin die Firma wachsen
+könnte und *was der Markt heute noch nicht einpreist*) plus einen **Katalysator**
+für die nächsten 1–3 Jahre. Gemeldet werden **so viele Kandidaten wie überzeugend
+sind** (Score ≥ `NEWSTICKER_SCORE_THRESHOLD`, Default 62), höchstens
 `NEWSTICKER_MAX_PICKS`.
 
 Die Begründungen formuliert ein kostenloses LLM (Groq → Gemini → Offline-Fallback),

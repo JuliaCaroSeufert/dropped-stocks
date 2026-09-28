@@ -57,16 +57,17 @@ def _card(p: GrowthPick) -> str:
     theme_color = _THEME_COLORS.get(p.theme, "#475569")
     sc = _score_color(p.score)
     price = f"{p.price:,.2f} {p.currency}" if p.price else "—"
-    upside = f"{p.upside_pct:+.0f}%" if p.upside_pct is not None else "—"
+    analysts = "sehr wenige" if p.num_analysts is None else str(p.num_analysts)
+    below = f"−{p.pct_below_high:.0f}%" if p.pct_below_high is not None else "—"
 
-    # Kennzahlen-Zeilen
+    # Kennzahlen — Fokus auf „früh & unentdeckt"-Signale
     metrics = [
         ("Kurs",              price),
-        ("Marktkap.",         _mc(p.market_cap)),
+        ("Marktkap. (klein)", _mc(p.market_cap)),
         ("Umsatzwachstum",    _pct(p.revenue_growth)),
         ("Bruttomarge",       _pct(p.gross_margins, signed=False)),
-        ("6-Monats-Kurs",     f"{p.perf_6m_pct:+.0f}%" if p.perf_6m_pct is not None else "—"),
-        ("Kursziel-Upside",   upside),
+        ("Analysten",         analysts),
+        ("Unter 52W-Hoch",    below),
     ]
     metric_cells = "".join(
         f'<td style="padding:6px 10px;border:1px solid #e2e8f0;">'
@@ -109,10 +110,16 @@ def _card(p: GrowthPick) -> str:
                       letter-spacing:0.4px;margin-bottom:3px;">Was macht die Firma?</div>
           <div style="font-size:14px;color:#334155;line-height:1.55;">{p.was or '—'}</div>
         </div>
-        <div>
+        <div style="margin-bottom:10px;padding:10px 12px;background:#f0fdf4;border-left:3px solid {theme_color};
+                    border-radius:4px;">
           <div style="font-size:12px;font-weight:700;color:{theme_color};text-transform:uppercase;
-                      letter-spacing:0.4px;margin-bottom:3px;">Warum interessant?</div>
-          <div style="font-size:14px;color:#334155;line-height:1.55;">{p.warum or '—'}</div>
+                      letter-spacing:0.4px;margin-bottom:3px;">Wachstumsthese — was noch nicht eingepreist ist</div>
+          <div style="font-size:14px;color:#334155;line-height:1.55;">{p.these or '—'}</div>
+        </div>
+        <div style="margin-bottom:4px;">
+          <div style="font-size:12px;font-weight:700;color:{theme_color};text-transform:uppercase;
+                      letter-spacing:0.4px;margin-bottom:3px;">⚡ Katalysator (1–3 Jahre)</div>
+          <div style="font-size:14px;color:#334155;line-height:1.55;">{p.katalysator or '—'}</div>
         </div>
         {risiken}
       </div>
@@ -146,7 +153,7 @@ def build_html(picks: list[GrowthPick]) -> str:
     <div style="text-align:center;margin-bottom:24px;">
       <div style="font-size:26px;font-weight:800;color:#0f172a;">📡 Zukunfts-Newsticker</div>
       <div style="font-size:14px;color:#64748b;margin-top:4px;">
-        Auf der Suche nach dem nächsten Nvidia · {today}</div>
+        Frühphasen-Aktien mit ungepreistem Potenzial — „Nvidia 2020" statt „Nvidia heute" · {today}</div>
     </div>
 
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:24px;">
@@ -164,10 +171,12 @@ def build_html(picks: list[GrowthPick]) -> str:
 
     <div style="margin-top:8px;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;
                 border-radius:10px;font-size:12px;color:#94a3b8;line-height:1.55;">
-      Der Zukunfts-Score bewertet Umsatzwachstum, Marge, Sektor-Rückenwind, Momentum,
-      Unternehmensgröße und Analysten-Kursziel. Datenquelle: Yahoo Finance.<br>
-      <strong>Keine Anlageberatung</strong> — nur zu Informationszwecken. Aktien in
-      Wachstumssektoren sind volatil; bitte eigene Recherche betreiben.
+      Der Zukunfts-Score sucht bewusst <strong>Frühphasen-Profile</strong>: hohes
+      Umsatzwachstum, Skalierbarkeit, kleine Marktkapitalisierung, geringe
+      Analystenabdeckung (noch unentdeckt) und Luft nach oben (nicht am Allzeithoch).
+      Schon gelaufene Mega-Caps werden ausgeschlossen. Datenquelle: Yahoo Finance.<br>
+      <strong>Keine Anlageberatung</strong> — nur zu Informationszwecken. Frühphasen-
+      Aktien sind hochvolatil und riskant; bitte immer eigene Recherche betreiben.
     </div>
   </div>
 </body></html>"""
@@ -189,8 +198,10 @@ def build_plain(picks: list[GrowthPick]) -> str:
         )
         if p.was:
             lines.append(f"Was: {p.was}")
-        if p.warum:
-            lines.append(f"Warum: {p.warum}")
+        if p.these:
+            lines.append(f"Wachstumsthese (ungepreist): {p.these}")
+        if p.katalysator:
+            lines.append(f"Katalysator: {p.katalysator}")
         if p.risiken:
             lines.append(f"Risiko: {p.risiken}")
         lines.append("")
