@@ -48,6 +48,8 @@ from dotenv import load_dotenv
 from checker import check_watchlist
 from config import DROP_THRESHOLD_PCT, RISE_THRESHOLD_PCT, WATCHLIST, _CACHE_FILE, build_watchlist
 from notifier import send_alert
+from newsletter import send_newsletter
+from newsticker import scan_growth_candidates
 
 load_dotenv()
 
@@ -117,6 +119,23 @@ def run_check() -> None:
         logger.error("Failed to send alert e-mail: %s", exc)
 
 
+def run_newsticker() -> None:
+    """Sucht Wachstumsaktien ('das nächste Nvidia') und schickt einen Newsletter."""
+    logger.info("Starte Zukunfts-Newsticker …")
+    picks = scan_growth_candidates()
+
+    if not picks:
+        logger.info("Newsticker: keine überzeugenden Kandidaten diese Woche — keine E-Mail.")
+        return
+
+    logger.info("Newsticker: %d Kandidat(en) gefunden — sende Newsletter …", len(picks))
+    cfg = _smtp_config()
+    try:
+        send_newsletter(picks=picks, **cfg)
+    except Exception as exc:
+        logger.error("Failed to send newsletter e-mail: %s", exc)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -146,6 +165,18 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Delete the local watchlist cache and force a fresh Wikipedia fetch.",
     )
+    parser.add_argument(
+        "--newsticker",
+        action="store_true",
+        help="Zukunfts-Newsticker: sucht Wachstumsaktien ('das nächste Nvidia') "
+             "und schickt einen Newsletter. Standard-Zeitplan: wöchentlich.",
+    )
+    parser.add_argument(
+        "--day",
+        default="monday",
+        metavar="WEEKDAY",
+        help="Wochentag für den Newsticker-Zeitplan (default: monday).",
+    )
     return parser.parse_args()
 
 
@@ -162,19 +193,29 @@ def main() -> None:
 
     logger.info("Watchlist contains %d tickers.", len(WATCHLIST))
 
+    # Newsticker-Modus (Wachstumsaktien / "das nächste Nvidia")
+    job = run_newsticker if args.newsticker else run_check
+
     if args.once:
-        run_check()
+        job()
         return
 
     # Scheduled mode
-    if args.weekdays_only:
+    if args.newsticker:
+        # Wöchentlich am gewählten Wochentag (default: Montag)
+        getattr(schedule.every(), args.day.lower()).at(args.time).do(job)
+        logger.info(
+            "Newsticker geplant: jeden %s um %s. Warte auf nächsten Lauf …",
+            args.day, args.time,
+        )
+    elif args.weekdays_only:
         for day in ("monday", "tuesday", "wednesday", "thursday", "friday"):
-            getattr(schedule.every(), day).at(args.time).do(run_check)
+            getattr(schedule.every(), day).at(args.time).do(job)
         logger.info(
             "Scheduled: weekdays at %s. Waiting for next run …", args.time
         )
     else:
-        schedule.every().day.at(args.time).do(run_check)
+        schedule.every().day.at(args.time).do(job)
         logger.info(
             "Scheduled: every day at %s. Waiting for next run …", args.time
         )

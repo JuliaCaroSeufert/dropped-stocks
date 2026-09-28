@@ -101,3 +101,56 @@ sudo systemctl enable --now stock-monitor
 ---
 
 *Prices are sourced from Yahoo Finance. This tool is for informational purposes only and is not financial advice.*
+
+---
+
+## 📡 Zukunfts-Newsticker — "Das nächste Nvidia"
+
+Neben den Drop-/Rise-Alerts gibt es einen **wöchentlichen Newsticker**, der
+gezielt nach langfristig aussichtsreichen Wachstumsaktien in Zukunftssektoren
+sucht und dir die überzeugendsten Kandidaten per E-Mail schickt — mit
+Begründung: **was die Firma macht** und **warum die Aktie interessant sein
+könnte**.
+
+### Abgedeckte Zukunftsthemen
+
+- **KI & Halbleiter** (AI-Chips, Compute, Halbleiter-Ausrüstung)
+- **Cloud, Software & Cybersecurity** (SaaS, Datenplattformen, IT-Sicherheit)
+- **Robotik, Automation & E-Mobilität** (Industrieautomation, EV, Batterien)
+- **Clean Energy, Biotech & Quantum** (Erneuerbare, Genomics, Quantencomputing)
+
+Das Universum ist eine kuratierte Liste aussichtsreicher Firmen in
+`growth_universe.py`. Optional kann per `NEWSTICKER_DISCOVER=true` zusätzlich die
+große Watchlist automatisch nach Firmen in Wachstumsbranchen durchsucht werden —
+so werden auch neue/aufstrebende Namen in wachsenden Sektoren aufgegriffen.
+
+### Zukunfts-Score (0–100)
+
+Jede Aktie wird bewertet nach: **Umsatzwachstum** (bis 30), **Bruttomarge/
+Skalierung** (bis 20), **Sektor-/Themen-Rückenwind** (bis 20), **Kurs-Momentum**
+(bis 15), **Marktkapitalisierungs-Fenster** (bis 8, Mid-Caps bevorzugt) und
+**Analysten-Kursziel-Upside** (bis 12). Gemeldet werden **so viele Kandidaten wie
+überzeugend sind** (Score ≥ `NEWSTICKER_SCORE_THRESHOLD`, Default 62), höchstens
+`NEWSTICKER_MAX_PICKS`.
+
+Die Begründungen formuliert ein kostenloses LLM (Groq → Gemini → Offline-Fallback),
+genau wie bei den Alerts.
+
+### Nutzung
+
+```bash
+# Einmal jetzt laufen lassen (zum Testen)
+python main.py --newsticker --once
+
+# Wöchentlich, montags um 08:00 (Standard)
+python main.py --newsticker
+
+# Anderer Wochentag / andere Uhrzeit
+python main.py --newsticker --day friday --time 07:30
+```
+
+Für den Dauerbetrieb den systemd-/Task-Scheduler-Eintrag oben verwenden und
+`main.py` um `--newsticker` ergänzen.
+
+*Datenquelle: Yahoo Finance. Keine Anlageberatung — Aktien in Wachstumssektoren
+sind volatil; bitte eigene Recherche betreiben.*
