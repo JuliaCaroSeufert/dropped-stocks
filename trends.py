@@ -578,8 +578,13 @@ def _smtp_from_env() -> dict:
 
 def main() -> None:
     import argparse
-    from dotenv import load_dotenv
-    load_dotenv()
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ModuleNotFoundError:
+        # --send only needs the stdlib; env vars may come from the environment
+        # directly (e.g. cloud secrets), so a missing python-dotenv is fine.
+        pass
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s  %(levelname)-8s  %(message)s",
                         datefmt="%Y-%m-%d %H:%M:%S")
