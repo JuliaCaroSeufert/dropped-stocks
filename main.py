@@ -117,6 +117,35 @@ def run_check() -> None:
         logger.error("Failed to send alert e-mail: %s", exc)
 
 
+def run_trends() -> None:
+    """Monatlicher Emerging-Trends-Report (Offline-Recherche via Groq/Gemini)."""
+    from trends import research_trends_offline, send_trends_report, _smtp_from_env
+
+    logger.info("Starte monatliche Trend-Recherche …")
+    data = research_trends_offline()
+    if not data or not data.get("trends"):
+        logger.error("Trend-Recherche lieferte kein Ergebnis — kein Report versendet.")
+        return
+
+    for t in data["trends"]:
+        logger.info("  Trend #%s: %s (%s)", t.get("rank"), t.get("name"), t.get("category"))
+
+    cfg = _smtp_from_env()
+    if not cfg["smtp_user"] or not cfg["recipients"]:
+        logger.error("SMTP_USER / EMAIL_RECIPIENTS fehlen — Trend-Report nicht versendet.")
+        return
+    try:
+        send_trends_report(data, **cfg)
+    except Exception as exc:
+        logger.error("Trend-Report-Versand fehlgeschlagen: %s", exc)
+
+
+def _run_trends_if_first_of_month() -> None:
+    """Called daily by the scheduler; runs the trends report only on the 1st."""
+    if datetime.now().day == 1:
+        run_trends()
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -146,6 +175,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Delete the local watchlist cache and force a fresh Wikipedia fetch.",
     )
+    parser.add_argument(
+        "--trends",
+        action="store_true",
+        help="Run the monthly Emerging-Trends research + e-mail immediately and exit.",
+    )
+    parser.add_argument(
+        "--no-trends-schedule",
+        action="store_true",
+        help="In scheduled mode, do NOT also run the monthly trends report on the 1st.",
+    )
     return parser.parse_args()
 
 
@@ -159,6 +198,10 @@ def main() -> None:
         import config as _cfg
         _cfg.WATCHLIST.clear()
         _cfg.WATCHLIST.update(build_watchlist())
+
+    if args.trends:
+        run_trends()
+        return
 
     logger.info("Watchlist contains %d tickers.", len(WATCHLIST))
 
@@ -178,6 +221,11 @@ def main() -> None:
         logger.info(
             "Scheduled: every day at %s. Waiting for next run …", args.time
         )
+
+    # Monthly Emerging-Trends report: checked daily, runs only on the 1st.
+    if not args.no_trends_schedule:
+        schedule.every().day.at("08:00").do(_run_trends_if_first_of_month)
+        logger.info("Emerging-Trends-Report: am 1. jedes Monats um 08:00.")
 
     logger.info("Next run: %s", schedule.next_run())
 
