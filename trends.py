@@ -321,10 +321,17 @@ def build_trends_plain(data: dict) -> str:
 # ── Versand ────────────────────────────────────────────────────────────────────
 
 def _send_via_resend(
-    api_key: str, sender: str, recipients: list[str],
+    api_key: str | None, sender: str, recipients: list[str],
     subject: str, html: str, text: str,
 ) -> None:
-    """Sends via the Resend HTTP API (https://resend.com)."""
+    """
+    Sends via the Resend HTTP API (https://resend.com).
+
+    If api_key is given (local use), it is sent as a Bearer token. If it is
+    None, no Authorization header is set — this is the cloud case where the
+    environment's network secret for api.resend.com is injected by the egress
+    proxy, so the session never sees the key value.
+    """
     payload = json.dumps({
         "from": sender,
         "to": recipients,
@@ -332,14 +339,19 @@ def _send_via_resend(
         "html": html,
         "text": text,
     }).encode("utf-8")
+    # A custom User-Agent is required: the default "Python-urllib/x" is blocked
+    # by Resend's CDN (Cloudflare error 1010).
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "dropped-stocks-trends/1.0",
+    }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     req = urllib.request.Request(
         "https://api.resend.com/emails",
         data=payload,
         method="POST",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
@@ -399,16 +411,14 @@ def send_trends_report(
     html = build_trends_html(data)
     text = build_trends_plain(data)
 
-    if resend_api_key:
-        _send_via_resend(resend_api_key, sender, recipients, subject, html, text)
-    elif smtp_user and smtp_password:
+    # SMTP only when explicit SMTP creds are set; otherwise Resend. In the cloud
+    # the Resend key is injected by the proxy (network secret for api.resend.com),
+    # so resend_api_key may be None here and that is fine.
+    if smtp_user and smtp_password:
         _send_via_smtp(smtp_host or "smtp.gmail.com", smtp_port, smtp_user,
                        smtp_password, sender, recipients, subject, html, text, use_tls)
     else:
-        raise RuntimeError(
-            "Kein Versandweg konfiguriert: weder RESEND_API_KEY noch "
-            "SMTP_USER/SMTP_PASSWORD gesetzt."
-        )
+        _send_via_resend(resend_api_key, sender, recipients, subject, html, text)
 
 
 # ── Offline-Recherche (self-contained Fallback) ────────────────────────────────
@@ -686,12 +696,12 @@ def main() -> None:
     if not cfg["recipients"]:
         logger.error("EMAIL_RECIPIENTS fehlt — kann nicht versenden.")
         raise SystemExit(1)
-    if not cfg["resend_api_key"] and not (cfg["smtp_user"] and cfg["smtp_password"]):
-        logger.error("Kein Versandweg: weder RESEND_API_KEY noch SMTP_USER/SMTP_PASSWORD gesetzt.")
-        raise SystemExit(1)
     if not cfg["sender"]:
         logger.error("EMAIL_SENDER fehlt (bei Resend die verifizierte Absenderadresse).")
         raise SystemExit(1)
+    # Ohne SMTP-Creds läuft der Versand über Resend. Der Key kann aus der
+    # Umgebung kommen (RESEND_API_KEY) oder — in der Cloud — vom Proxy als
+    # Netzwerk-Secret für api.resend.com injiziert werden.
     send_trends_report(data, **cfg)
 
 

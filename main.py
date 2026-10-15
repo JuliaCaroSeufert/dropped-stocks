@@ -131,8 +131,8 @@ def run_trends() -> None:
         logger.info("  Trend #%s: %s (%s)", t.get("rank"), t.get("name"), t.get("category"))
 
     cfg = _delivery_from_env()
-    if not cfg["recipients"] or (not cfg["resend_api_key"] and not (cfg["smtp_user"] and cfg["smtp_password"])):
-        logger.error("Kein Versandweg (RESEND_API_KEY oder SMTP) / EMAIL_RECIPIENTS fehlt — Trend-Report nicht versendet.")
+    if not cfg["recipients"] or not cfg["sender"]:
+        logger.error("EMAIL_SENDER / EMAIL_RECIPIENTS fehlt — Trend-Report nicht versendet.")
         return
     try:
         send_trends_report(data, **cfg)
