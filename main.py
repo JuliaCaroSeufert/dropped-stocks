@@ -119,7 +119,7 @@ def run_check() -> None:
 
 def run_trends() -> None:
     """Monatlicher Emerging-Trends-Report (Offline-Recherche via Groq/Gemini)."""
-    from trends import research_trends_offline, send_trends_report, _smtp_from_env
+    from trends import research_trends_offline, send_trends_report, _delivery_from_env
 
     logger.info("Starte monatliche Trend-Recherche …")
     data = research_trends_offline()
@@ -130,9 +130,9 @@ def run_trends() -> None:
     for t in data["trends"]:
         logger.info("  Trend #%s: %s (%s)", t.get("rank"), t.get("name"), t.get("category"))
 
-    cfg = _smtp_from_env()
-    if not cfg["smtp_user"] or not cfg["recipients"]:
-        logger.error("SMTP_USER / EMAIL_RECIPIENTS fehlen — Trend-Report nicht versendet.")
+    cfg = _delivery_from_env()
+    if not cfg["recipients"] or (not cfg["resend_api_key"] and not (cfg["smtp_user"] and cfg["smtp_password"])):
+        logger.error("Kein Versandweg (RESEND_API_KEY oder SMTP) / EMAIL_RECIPIENTS fehlt — Trend-Report nicht versendet.")
         return
     try:
         send_trends_report(data, **cfg)

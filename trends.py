@@ -22,6 +22,7 @@ import logging
 import os
 import smtplib
 import urllib.parse
+import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
@@ -319,27 +320,48 @@ def build_trends_plain(data: dict) -> str:
 
 # ── Versand ────────────────────────────────────────────────────────────────────
 
-def send_trends_report(
-    data: dict,
-    smtp_host: str,
-    smtp_port: int,
-    smtp_user: str,
-    smtp_password: str,
-    sender: str,
-    recipients: list[str],
+def _send_via_resend(
+    api_key: str, sender: str, recipients: list[str],
+    subject: str, html: str, text: str,
+) -> None:
+    """Sends via the Resend HTTP API (https://resend.com)."""
+    payload = json.dumps({
+        "from": sender,
+        "to": recipients,
+        "subject": subject,
+        "html": html,
+        "text": text,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = json.loads(r.read().decode("utf-8"))
+        logger.info("Trend-Report über Resend verschickt (id=%s) an %s",
+                    body.get("id"), recipients)
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "ignore")
+        raise RuntimeError(f"Resend-API-Fehler {e.code}: {detail}") from e
+
+
+def _send_via_smtp(
+    smtp_host: str, smtp_port: int, smtp_user: str, smtp_password: str,
+    sender: str, recipients: list[str], subject: str, html: str, text: str,
     use_tls: bool = True,
 ) -> None:
-    edition = data.get("edition") or datetime.utcnow().strftime("%B %Y")
-    n = len(data.get("trends", []))
-    top = data["trends"][0]["name"] if data.get("trends") else ""
-    subject = f"🔮 Emerging Trends — {edition}: Top {n} (#1: {top})"
-
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = sender
     msg["To"] = ", ".join(recipients)
-    msg.attach(MIMEText(build_trends_plain(data), "plain", "utf-8"))
-    msg.attach(MIMEText(build_trends_html(data), "html", "utf-8"))
+    msg.attach(MIMEText(text, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
 
     if use_tls:
         server = smtplib.SMTP(smtp_host, smtp_port)
@@ -350,9 +372,43 @@ def send_trends_report(
     try:
         server.login(smtp_user, smtp_password)
         server.sendmail(sender, recipients, msg.as_string())
-        logger.info("Trend-Report verschickt an %s", recipients)
+        logger.info("Trend-Report über SMTP verschickt an %s", recipients)
     finally:
         server.quit()
+
+
+def send_trends_report(
+    data: dict,
+    sender: str,
+    recipients: list[str],
+    resend_api_key: str | None = None,
+    smtp_host: str | None = None,
+    smtp_port: int = 587,
+    smtp_user: str | None = None,
+    smtp_password: str | None = None,
+    use_tls: bool = True,
+) -> None:
+    """
+    Verschickt den Trend-Report. Bevorzugt Resend (RESEND_API_KEY), fällt sonst
+    auf SMTP zurück.
+    """
+    edition = data.get("edition") or datetime.utcnow().strftime("%B %Y")
+    n = len(data.get("trends", []))
+    top = data["trends"][0]["name"] if data.get("trends") else ""
+    subject = f"🔮 Emerging Trends — {edition}: Top {n} (#1: {top})"
+    html = build_trends_html(data)
+    text = build_trends_plain(data)
+
+    if resend_api_key:
+        _send_via_resend(resend_api_key, sender, recipients, subject, html, text)
+    elif smtp_user and smtp_password:
+        _send_via_smtp(smtp_host or "smtp.gmail.com", smtp_port, smtp_user,
+                       smtp_password, sender, recipients, subject, html, text, use_tls)
+    else:
+        raise RuntimeError(
+            "Kein Versandweg konfiguriert: weder RESEND_API_KEY noch "
+            "SMTP_USER/SMTP_PASSWORD gesetzt."
+        )
 
 
 # ── Offline-Recherche (self-contained Fallback) ────────────────────────────────
@@ -564,16 +620,25 @@ def research_trends_offline() -> dict | None:
 
 # ── CLI ─────────────────────────────────────────────────────────────────────────
 
-def _smtp_from_env() -> dict:
+def _delivery_from_env() -> dict:
+    """
+    Liest die Versand-Konfiguration aus Umgebungsvariablen.
+    Bevorzugt Resend (RESEND_API_KEY); SMTP ist der Fallback.
+    """
     return {
-        "smtp_host": os.getenv("SMTP_HOST", "smtp.gmail.com"),
-        "smtp_port": int(os.getenv("SMTP_PORT", "587")),
-        "smtp_user": os.getenv("SMTP_USER", ""),
-        "smtp_password": os.getenv("SMTP_PASSWORD", ""),
+        "resend_api_key": os.getenv("RESEND_API_KEY") or None,
         "sender": os.getenv("EMAIL_SENDER") or os.getenv("SMTP_USER", ""),
         "recipients": [r.strip() for r in os.getenv("EMAIL_RECIPIENTS", "").split(",") if r.strip()],
+        "smtp_host": os.getenv("SMTP_HOST", "smtp.gmail.com"),
+        "smtp_port": int(os.getenv("SMTP_PORT", "587")),
+        "smtp_user": os.getenv("SMTP_USER") or None,
+        "smtp_password": os.getenv("SMTP_PASSWORD") or None,
         "use_tls": os.getenv("USE_TLS", "true").lower() != "false",
     }
+
+
+# Rückwärtskompatibler Alias
+_smtp_from_env = _delivery_from_env
 
 
 def main() -> None:
@@ -617,9 +682,15 @@ def main() -> None:
         print(build_trends_html(data))
         return
 
-    cfg = _smtp_from_env()
-    if not cfg["smtp_user"] or not cfg["recipients"]:
-        logger.error("SMTP_USER / EMAIL_RECIPIENTS fehlen — kann nicht versenden.")
+    cfg = _delivery_from_env()
+    if not cfg["recipients"]:
+        logger.error("EMAIL_RECIPIENTS fehlt — kann nicht versenden.")
+        raise SystemExit(1)
+    if not cfg["resend_api_key"] and not (cfg["smtp_user"] and cfg["smtp_password"]):
+        logger.error("Kein Versandweg: weder RESEND_API_KEY noch SMTP_USER/SMTP_PASSWORD gesetzt.")
+        raise SystemExit(1)
+    if not cfg["sender"]:
+        logger.error("EMAIL_SENDER fehlt (bei Resend die verifizierte Absenderadresse).")
         raise SystemExit(1)
     send_trends_report(data, **cfg)
 
