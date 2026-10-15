@@ -1,7 +1,7 @@
 {
   "edition": "Oktober 2026",
   "report_date": "2026-10-14",
-  "methodology": "Frühsignale aus wissenschaftlichen Preprints (arXiv, Nature Communications), ersten klinischen bzw. regulatorischen Schritten, Startup-Finanzierungsrunden und Fach-Communities im Zeitraum Ende 2025 bis Herbst 2026. Aufgenommen wurden nur Themen mit konkreten, überprüfbaren Frühsignalen, die ein Milliardenpotenzial erkennen lassen, aber noch NICHT als 'der nächste große Trend' in Mainstream-Medien (FAZ, Spiegel, Bloomberg, TechCrunch) etabliert sind.",
+  "methodology": "Frühsignale aus wissenschaftlichen Preprints (arXiv, Nature Communications), ersten klinischen bzw. regulatorischen Schritten, Startup-Finanzierungsrunden und Fach-Communities im Zeitraum Ende 2025 bis Herbst 2026. Aufgenommen wurden nur Themen mit konkreten, überprüfbaren Frühsignalen, die ein Milliardenpotenzial erkennen lassen, aber noch NICHT als 'der nächste große Trend' in Mainstream-Medien (FAZ, Spiegel, Bloomberg, TechCrunch) etabliert sind. Diese Ausgabe umfasst 5 Trends, darunter verpflichtend einen B2B-Trend (Agenten-Identität) und einen bewusst sehr nischigen Trend (Biocomputing).",
   "trends": [
     {
       "rank": 1,
@@ -18,16 +18,31 @@
         "ASRM veröffentlicht 2026 erste offizielle Ethik-Stellungnahme zu IVG — Übergang Labor → Klinik"
       ],
       "investment_angles": [
-        {"thesis": "Direkte IVG-Plattformen und die noch fehlende Eizell-Reifungstechnologie", "examples": "Conception, Gameto, Ivy Natal, Vitra Labs"},
-        {"thesis": "Zuliefertechnologie: iPSC-Reprogrammierung, Ovar-Organoide, spezialisierte Kulturmedien", "examples": "Hersteller von Reprogrammierungs-Reagenzien und Organoid-Kultursystemen"}
+        {
+          "thesis": "Direkte IVG-Plattformen und die noch fehlende Eizell-Reifungstechnologie",
+          "examples": "Conception, Gameto, Ivy Natal, Vitra Labs"
+        },
+        {
+          "thesis": "Zuliefertechnologie: iPSC-Reprogrammierung, Ovar-Organoide, spezialisierte Kulturmedien",
+          "examples": "Hersteller von Reprogrammierungs-Reagenzien und Organoid-Kultursystemen"
+        }
       ],
       "novelty_score": 94,
       "growth_score": 88,
       "main_risk": "Die biologische Reifung zu befruchtungsfähigen Zellen könnte deutlich schwieriger sein als erhofft; massive regulatorische und ethische Hürden können die Kommerzialisierung um viele Jahre verzögern.",
       "sources": [
-        {"label": "The Niche (ipscell.com) — IVG erklärt", "url": "https://ipscell.com/2025/02/a-close-look-at-in-vitro-gametogenesis-or-ivg-making-sperm-eggs-from-stem-cells-to-have-kids/"},
-        {"label": "ASRM Ethik-Stellungnahme 2026", "url": "https://www.asrm.org/practice-guidance/ethics-opinions/ethical-considerations-of-in-vitro-gametogenesis-an-ethics-committee-opinion-asrm-2026/"},
-        {"label": "Conception — erste Eizellen aus Stammzellen", "url": "https://www.disabled-world.com/news/research/stemcells/conception.php"}
+        {
+          "label": "The Niche (ipscell.com) — IVG erklärt",
+          "url": "https://ipscell.com/2025/02/a-close-look-at-in-vitro-gametogenesis-or-ivg-making-sperm-eggs-from-stem-cells-to-have-kids/"
+        },
+        {
+          "label": "ASRM Ethik-Stellungnahme 2026",
+          "url": "https://www.asrm.org/practice-guidance/ethics-opinions/ethical-considerations-of-in-vitro-gametogenesis-an-ethics-committee-opinion-asrm-2026/"
+        },
+        {
+          "label": "Conception — erste Eizellen aus Stammzellen",
+          "url": "https://www.disabled-world.com/news/research/stemcells/conception.php"
+        }
       ]
     },
     {
@@ -45,16 +60,31 @@
         "Erste klinische Studie partieller Reprogrammierung startet 2026 (Berichte u.a. fightaging.org)"
       ],
       "investment_angles": [
-        {"thesis": "Klinische Reprogrammierungs-Plattformen in der Frühphase", "examples": "Life Biosciences, NewLimit, Altos Labs, Retro Biosciences"},
-        {"thesis": "Enabling-Technologie: zielgenaue Delivery und präzise epigenetische Alternsuhren zur Wirksamkeitsmessung", "examples": "Anbieter von Methylierungs-Alternsuhren und Gen-Delivery-Systemen"}
+        {
+          "thesis": "Klinische Reprogrammierungs-Plattformen in der Frühphase",
+          "examples": "Life Biosciences, NewLimit, Altos Labs, Retro Biosciences"
+        },
+        {
+          "thesis": "Enabling-Technologie: zielgenaue Delivery und präzise epigenetische Alternsuhren zur Wirksamkeitsmessung",
+          "examples": "Anbieter von Methylierungs-Alternsuhren und Gen-Delivery-Systemen"
+        }
       ],
       "novelty_score": 83,
       "growth_score": 92,
       "main_risk": "Reprogrammierung kann im schlimmsten Fall Tumorbildung auslösen; scheitert die erste Generation von Humanstudien an der Sicherheit, kann das das gesamte Feld um Jahre zurückwerfen.",
       "sources": [
-        {"label": "longevity.technology — Life Bio Rejuvenation", "url": "https://longevity.technology/news/life-bio-epigenetic-rejuvenation-transcends-organs/"},
-        {"label": "fightaging.org — erste Partial-Reprogramming-Studie", "url": "https://www.fightaging.org/archives/2026/02/the-first-clinical-trial-of-partial-reprogramming-will-start-soon/"},
-        {"label": "Labiotech — Anti-Aging-Firmen 2026", "url": "https://www.labiotech.eu/best-biotech/anti-aging-biotech-companies/"}
+        {
+          "label": "longevity.technology — Life Bio Rejuvenation",
+          "url": "https://longevity.technology/news/life-bio-epigenetic-rejuvenation-transcends-organs/"
+        },
+        {
+          "label": "fightaging.org — erste Partial-Reprogramming-Studie",
+          "url": "https://www.fightaging.org/archives/2026/02/the-first-clinical-trial-of-partial-reprogramming-will-start-soon/"
+        },
+        {
+          "label": "Labiotech — Anti-Aging-Firmen 2026",
+          "url": "https://www.labiotech.eu/best-biotech/anti-aging-biotech-companies/"
+        }
       ]
     },
     {
@@ -72,16 +102,115 @@
         "Nature Communications 2026: neuromorph-photonischer Schaltkreis mit elektro-optischem Analogspeicher"
       ],
       "investment_angles": [
-        {"thesis": "Photonische Inferenz-Beschleuniger", "examples": "OLIX, Lightmatter, Celestial AI, Salience Labs"},
-        {"thesis": "Analog-In-Memory-Compute auf Basis von Phase-Change-/Memristor-Speicher", "examples": "IBM Research (PCM-Chips), Sagence AI, d-Matrix"}
+        {
+          "thesis": "Photonische Inferenz-Beschleuniger",
+          "examples": "OLIX, Lightmatter, Celestial AI, Salience Labs"
+        },
+        {
+          "thesis": "Analog-In-Memory-Compute auf Basis von Phase-Change-/Memristor-Speicher",
+          "examples": "IBM Research (PCM-Chips), Sagence AI, d-Matrix"
+        }
       ],
       "novelty_score": 85,
       "growth_score": 86,
       "main_risk": "Der Zeithorizont bis zum Masseneinsatz (~2033) ist lang; klassische GPU-Effizienzfortschritte könnten den Vorsprung einholen, bevor Photonik und Analog-Compute im großen Maßstab skalieren.",
       "sources": [
-        {"label": "SiliconANGLE — OLIX 220 Mio USD", "url": "https://siliconangle.com/2026/02/11/photonic-ai-chip-startup-olix-nabs-220m-investment/"},
-        {"label": "Nature Communications — photonischer Tensor-Prozessor", "url": "https://www.nature.com/articles/s41467-026-71599-2"},
-        {"label": "Nature Communications — neuromorph-photonischer Analogspeicher", "url": "https://www.nature.com/articles/s41467-026-69084-x"}
+        {
+          "label": "SiliconANGLE — OLIX 220 Mio USD",
+          "url": "https://siliconangle.com/2026/02/11/photonic-ai-chip-startup-olix-nabs-220m-investment/"
+        },
+        {
+          "label": "Nature Communications — photonischer Tensor-Prozessor",
+          "url": "https://www.nature.com/articles/s41467-026-71599-2"
+        },
+        {
+          "label": "Nature Communications — neuromorph-photonischer Analogspeicher",
+          "url": "https://www.nature.com/articles/s41467-026-69084-x"
+        }
+      ]
+    },
+    {
+      "rank": 4,
+      "name": "Biocomputing mit Hirn-Organoiden (Wetware)",
+      "category": "Wildcard",
+      "core_thesis": "Lebende menschliche Nervenzellen als Rechen-Hardware — potenziell extrem energieeffizient und selbstlernend, als radikale Alternative zu Silizium.",
+      "why_now": "Cortical Labs (Australien) brachte 2025 mit dem CL1 den nach eigenen Angaben ersten kommerziell verfügbaren biologischen Computer auf den Markt (~200.000 menschliche Neuronen auf einem Chip, ~35.000 USD). FinalSpark (Schweiz) vermietet über seine Neuroplatform Fernzugriff auf lebende Organoide per Python-API. Eine JMIR-Übersicht (Mai 2026) markiert den Übergang in die frühe kommerzielle Phase.",
+      "why_still_early": "Noch reine Forschungsplattformen: Die Aktivität der Organoide ist unvorhersehbar, das Training schwierig, und die Neuronen leben nur wenige Monate. Praktischer Nutzen jenseits von Experimenten ist weit entfernt — genau deshalb extrem nischig.",
+      "market_potential": "Bestätigt sich die behauptete Energieeffizienz (FinalSpark nennt bis zu 1 Mio-fach — firmeneigene Angabe) auch nur annähernd, adressiert das die Achillesferse der KI: den Energieverbrauch. Zunächst kleiner Forschungsmarkt, langfristig potenziell milliardenschwer.",
+      "timeframe": "2030-2040",
+      "early_signals": [
+        "Cortical Labs CL1: erster kommerziell verfügbarer biologischer Computer (2025, ~200.000 Neuronen, ~35.000 USD)",
+        "FinalSpark Neuroplatform: Fernzugriff auf lebende Organoide per API (~10.000 Neuronen)",
+        "JMIR-Feature (Mai 2026): Biocomputing in früher kommerzieller Phase"
+      ],
+      "investment_angles": [
+        {
+          "thesis": "Wetware-Plattformen & Zugang-as-a-Service",
+          "examples": "Cortical Labs, FinalSpark"
+        },
+        {
+          "thesis": "Zuliefertechnik: Mikroelektroden-Arrays, Organoid-Kultivierung, Lebenserhaltung",
+          "examples": "MEA-Hersteller, Organoid-Kultursysteme"
+        }
+      ],
+      "novelty_score": 92,
+      "growth_score": 78,
+      "main_risk": "Fundamentale wissenschaftliche Hürden (Steuerbarkeit, Lebensdauer) könnten unüberwindbar bleiben; dazu erhebliche ethische Fragen zum moralischen Status der Organoide.",
+      "sources": [
+        {
+          "label": "medicalxpress — Organoid-Biocomputer",
+          "url": "https://medicalxpress.com/news/2026-05-lab-grown-brain-organoids-power.html"
+        },
+        {
+          "label": "neurofounders — frühe kommerzielle Phase",
+          "url": "https://www.neurofounders.co/articles/inside-biocomputings-early-commercial-phase"
+        },
+        {
+          "label": "EurekAlert/JMIR — Organoide als Biocomputer",
+          "url": "https://www.eurekalert.org/news-releases/1129684"
+        }
+      ]
+    },
+    {
+      "rank": 5,
+      "name": "Identität & Zugriffskontrolle für KI-Agenten",
+      "category": "B2B",
+      "core_thesis": "Wenn autonome KI-Agenten wie Mitarbeiter handeln, brauchen sie eigene Identitäten, Authentifizierung und feingranulare Rechte — 'IAM für Non-Human Identities'.",
+      "why_now": "2026 strömt Kapital in die Kategorie: NewCore kam mit 66 Mio USD Seed aus dem Stealth (300 Mio USD Bewertung; Cyberstarts/Index/Evolution), Oak mit 60 Mio USD (Accel/CRV/Greylock), dazu Keycard (38 Mio) und WorkOS (100 Mio USD bei 2 Mrd Bewertung). Parallel eine Übernahmewelle.",
+      "why_still_early": "Die Kategorie formiert sich gerade erst — Standards für Agenten-Identität, -Autorisierung und -Audit existieren noch nicht. Für die breite Unternehmens-IT ist 'Non-Human Identity für Agenten' noch kein etabliertes Budget-Thema.",
+      "market_potential": "Der IAM-Markt liegt im zweistelligen Milliardenbereich; die Explosion autonomer Agenten (laut Gartner bald in ~40% der Enterprise-Apps) schafft eine komplett neue Identitäts-Schicht. AI/Agenten-Sicherheit machte Q2 2026 bereits ~ein Viertel des Cybersecurity-Seed-Fundings aus.",
+      "timeframe": "2026-2030",
+      "early_signals": [
+        "NewCore: 66 Mio USD Seed, 300 Mio USD Bewertung (2026) — Identitäten für KI-Agenten",
+        "Oak: 60 Mio USD aus dem Stealth (Accel/CRV/Greylock) — Control Plane für Agenten-Rechte",
+        "Übernahmewelle: ServiceNow/Veza (~1 Mrd), CrowdStrike/SGNL (~740 Mio), Cisco/Astrix (~400 Mio)"
+      ],
+      "investment_angles": [
+        {
+          "thesis": "Identitäts- & Autorisierungs-Plattformen für Agenten",
+          "examples": "NewCore, Oak, Keycard, WorkOS, Rig Security"
+        },
+        {
+          "thesis": "Agenten-Audit, -Governance & Laufzeitkontrolle",
+          "examples": "Astrix, SGNL, Veza (inzwischen bei größeren Playern)"
+        }
+      ],
+      "novelty_score": 72,
+      "growth_score": 88,
+      "main_risk": "Große Identity-Anbieter (Okta, Microsoft) könnten das Thema schnell selbst besetzen; die bereits laufende Aufkaufwelle begrenzt unabhängiges Aufwärtspotenzial.",
+      "sources": [
+        {
+          "label": "TechCrunch — NewCore $66M",
+          "url": "https://techcrunch.com/2026/06/15/ai-agents-are-becoming-employees-newcore-emerges-with-66m-to-give-them-identities/"
+        },
+        {
+          "label": "TechCrunch — Oak $60M",
+          "url": "https://techcrunch.com/2026/07/15/backed-by-60m-in-funding-oak-steps-out-of-stealth-to-fix-the-identity-mess-that-ai-agents-are-making-worse/"
+        },
+        {
+          "label": "Agentic-AI-Security Funding & M&A 2026",
+          "url": "https://softwarestrategiesblog.com/2026/03/28/agentic-ai-security-startups-funding-mna-rsac-2026/"
+        }
       ]
     }
   ]
