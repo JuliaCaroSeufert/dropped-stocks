@@ -1,9 +1,10 @@
 """
 Monatlicher "Emerging Trends"-Report.
 
-Erkennt FRÜHE, noch nicht mainstream-bekannte Trends und verschickt die Top 3
-als hochwertigen Newsletter per E-Mail. Auslöser: 1. des Monats (automatisch
-über main.py) oder manuell via `python main.py --trends`.
+Erkennt FRÜHE, noch nicht mainstream-bekannte Trends und verschickt die Top 5
+(darunter mind. 1 B2B-Trend und 1 wirklich nischiger Trend) als hochwertigen
+Newsletter per E-Mail. Auslöser: 1. des Monats (automatisch über main.py) oder
+manuell via `python main.py --trends`.
 
 Zwei Betriebsarten:
   1. PREMIUM (empfohlen): Eine Claude-Session recherchiert monatlich tief mit
@@ -11,7 +12,7 @@ Zwei Betriebsarten:
      `python trends.py --send <datei.json>` zum Versand auf.
   2. OFFLINE (self-contained): `python trends.py --research` sammelt Frühsignale
      aus Google Trends, arXiv, PubMed und Hacker News und lässt Groq/Gemini
-     daraus die Top 3 destillieren. Läuft ohne Claude-Session, dafür mit der
+     daraus die Top 5 destillieren. Läuft ohne Claude-Session, dafür mit der
      Qualität des jeweiligen Gratis-LLM.
 
 Das JSON-Schema (für beide Wege identisch) steht in TRENDS_SCHEMA unten.
@@ -529,7 +530,7 @@ def _fetch_hackernews() -> str:
 
 _OFFLINE_PROMPT = """\
 Du bist Lead Analyst bei einem europäischen Venture-Capital-Fonds und sollst die
-TOP 3 WIRKLICH FRÜHEN, noch nicht mainstream-bekannten Trends identifizieren.
+TOP 5 WIRKLICH FRÜHEN, noch nicht mainstream-bekannten Trends identifizieren.
 
 MASSSTAB (so früh musst du sein):
 - Longevity als Investmentthese: erkannt ~2019-2021, VOR dem Bryan-Johnson-Hype 2022/23
@@ -538,6 +539,13 @@ Du suchst Trends auf genau diesem Früherkennungs-Niveau.
 
 SUCHRASTER: AI, Gesundheit/Longevity, B2B/Enterprise, Consumer-Verhalten,
 Kinder/Schwangerschaft/Fertilität. Wildcards außerhalb erlaubt, wenn global/EU-weit groß.
+
+PFLICHT-SLOTS unter den 5 Trends:
+- MINDESTENS 1 Trend MUSS B2B/Enterprise sein (category "B2B").
+- MINDESTENS 1 Trend MUSS ein wirklich NISCHIGES Thema sein — hochspezialisiert,
+  kaum bekannt, sehr frühe Phase (noch nischiger als die übrigen). Je obskurer
+  und früher, desto besser, solange es überprüfbare Signale + echtes Potenzial hat.
+Die übrigen 3 nach Neuartigkeit × Wachstumspotenzial, möglichst über verschiedene Felder gestreut.
 
 STRENGE FILTER — ein Trend muss ALLE bestehen:
 ✓ Noch NICHT als "nächster großer Trend" in FAZ/Spiegel/Bloomberg/TechCrunch

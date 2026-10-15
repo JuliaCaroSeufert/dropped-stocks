@@ -3,7 +3,8 @@
 Dieser Report wird **nicht** vom Python-Scheduler in `main.py` erzeugt, sondern von
 einer server-seitig gespeicherten **Claude-Code-Routine** (geplanter Trigger). Jeden
 Monat startet eine frische Claude-Session, recherchiert mit WebSearch tief über alle
-Themenfelder, bestimmt die Top 3 wirklich frühen Trends und verschickt die Mail über
+Themenfelder, bestimmt die Top 5 wirklich frühen Trends (darunter mind. 1 B2B-Trend
+und 1 wirklich nischiger Trend) und verschickt die Mail über
 `python trends.py --send <datei.json>`.
 
 Jeder Lauf pusht sein Ergebnis zusätzlich als `reports/trends_<JAHR>-<MONAT>.json`
@@ -69,13 +70,16 @@ aus; nur der automatische Versand entfällt.
 > Finanzierungsrunden, klinische/regulatorische Schritte, Patente); realistisch >500 Mio
 > EUR Potenzial in 5 Jahren; spezifisch genug für Investitionsthesen. Verboten: zu breite/
 > bekannte Themen. Jedes Signal an einer Primärquelle verifizieren. Jeden Monat möglichst
-> NEUE Themen. Top 3 nach Neuartigkeit × Wachstumspotenzial wählen.
+> NEUE Themen. GENAU 5 Trends wählen, sortiert nach Neuartigkeit × Wachstumspotenzial.
+> PFLICHT: mind. 1 Trend B2B/Enterprise, mind. 1 Trend wirklich nischig (hochspezialisiert,
+> sehr frühe Phase); die übrigen 3 möglichst über verschiedene Felder gestreut.
 >
-> **3. JSON SCHREIBEN** — Die 3 Trends als valides JSON exakt nach `TRENDS_SCHEMA` nach
+> **3. JSON SCHREIBEN** — Die 5 Trends als valides JSON exakt nach `TRENDS_SCHEMA` nach
 > `/tmp/trends.json`. Textfelder auf Deutsch, echte Quell-URLs, realistische
 > novelty_score/growth_score, edition/report_date = aktueller Monat.
 >
 > **4. VERSENDEN** — `python trends.py --send /tmp/trends.json` (braucht nur Standard-
 > bibliothek + SMTP-Umgebungsvariablen). Schlägt der Versand mangels SMTP-Secrets fehl:
 > JSON + Kurzzusammenfassung ausgeben und auf die fehlenden Secrets hinweisen.
-> Am Ende kurz melden, welche 3 Trends gewählt wurden und ob die Mail verschickt wurde.
+> Am Ende kurz melden, welche 5 Trends gewählt wurden (inkl. B2B- und nischiger Pflicht-Slot)
+> und ob die Mail verschickt wurde.
