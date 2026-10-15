@@ -6,6 +6,10 @@ Monat startet eine frische Claude-Session, recherchiert mit WebSearch tief über
 Themenfelder, bestimmt die Top 3 wirklich frühen Trends und verschickt die Mail über
 `python trends.py --send <datei.json>`.
 
+Jeder Lauf pusht sein Ergebnis zusätzlich als `reports/trends_<JAHR>-<MONAT>.json`
+in den Branch — so ist jeder Report versioniert abrufbar, auch wenn der Mailversand
+(noch) nicht konfiguriert ist.
+
 Diese Datei dokumentiert die Routine, damit ihre Konfiguration versioniert und
 reproduzierbar ist. Sie wird vom Programm **nicht** gelesen — sie ist reine Referenz.
 
