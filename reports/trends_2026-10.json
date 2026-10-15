@@ -1,0 +1,88 @@
+{
+  "edition": "Oktober 2026",
+  "report_date": "2026-10-14",
+  "methodology": "Frühsignale aus wissenschaftlichen Preprints (arXiv, Nature Communications), ersten klinischen bzw. regulatorischen Schritten, Startup-Finanzierungsrunden und Fach-Communities im Zeitraum Ende 2025 bis Herbst 2026. Aufgenommen wurden nur Themen mit konkreten, überprüfbaren Frühsignalen, die ein Milliardenpotenzial erkennen lassen, aber noch NICHT als 'der nächste große Trend' in Mainstream-Medien (FAZ, Spiegel, Bloomberg, TechCrunch) etabliert sind.",
+  "trends": [
+    {
+      "rank": 1,
+      "name": "In-Vitro-Gametogenese (IVG)",
+      "category": "Familie",
+      "core_thesis": "Eizellen und Spermien aus Haut- oder Blutzellen im Labor herzustellen — das könnte Fortpflanzung erstmals von Alter, Geschlecht und Unfruchtbarkeit entkoppeln.",
+      "why_now": "2026 meldete das kalifornische Startup Conception, erstmals frühe menschliche Eizellen (primäre Oozyten) aus einer simplen Blutprobe erzeugt zu haben — über den Umweg reprogrammierter Stammzellen und ovar-ähnlicher Mini-Organoide. Fast zeitgleich zeigte die Oregon Health & Science University Ende 2025 in Nature Communications einen alternativen Weg per Zellkerntransfer. Dass die US-Reproduktionsmediziner-Vereinigung ASRM 2026 ihre erste Ethik-Stellungnahme zu IVG veröffentlicht hat, ist das deutlichste Signal, dass das Feld die reine Grundlagenforschung verlässt.",
+      "why_still_early": "Es wurde noch keine voll ausgereifte, befruchtungsfähige menschliche Eizelle erzeugt — die Reifung ist das ungelöste Kernproblem. Schätzungen bis zur ersten klinischen Anwendung liegen bei 5-10 Jahren, weshalb die breite Investoren- und Medienwelt das Thema noch kaum auf dem Radar hat.",
+      "market_potential": "Der globale Fertilitätsmarkt liegt bereits bei ~40 Mrd USD und wächst zweistellig. IVG adressiert zusätzlich bislang unlösbare Fälle: Frauen ohne Eizellreserve, Fertilität jenseits der Menopause, gleichgeschlechtliche Paare mit genetisch eigenen Kindern. Das ist ein potenziell zweistellig-milliardenschwerer, komplett neuer Teilmarkt.",
+      "timeframe": "2028-2035",
+      "early_signals": [
+        "Conception (Kalifornien) meldet 2026 erste menschliche primäre Oozyten aus Blutzellen",
+        "OHSU: Zellkerntransfer-Proof-of-Concept in Nature Communications (Ende 2025)",
+        "ASRM veröffentlicht 2026 erste offizielle Ethik-Stellungnahme zu IVG — Übergang Labor → Klinik"
+      ],
+      "investment_angles": [
+        {"thesis": "Direkte IVG-Plattformen und die noch fehlende Eizell-Reifungstechnologie", "examples": "Conception, Gameto, Ivy Natal, Vitra Labs"},
+        {"thesis": "Zuliefertechnologie: iPSC-Reprogrammierung, Ovar-Organoide, spezialisierte Kulturmedien", "examples": "Hersteller von Reprogrammierungs-Reagenzien und Organoid-Kultursystemen"}
+      ],
+      "novelty_score": 94,
+      "growth_score": 88,
+      "main_risk": "Die biologische Reifung zu befruchtungsfähigen Zellen könnte deutlich schwieriger sein als erhofft; massive regulatorische und ethische Hürden können die Kommerzialisierung um viele Jahre verzögern.",
+      "sources": [
+        {"label": "The Niche (ipscell.com) — IVG erklärt", "url": "https://ipscell.com/2025/02/a-close-look-at-in-vitro-gametogenesis-or-ivg-making-sperm-eggs-from-stem-cells-to-have-kids/"},
+        {"label": "ASRM Ethik-Stellungnahme 2026", "url": "https://www.asrm.org/practice-guidance/ethics-opinions/ethical-considerations-of-in-vitro-gametogenesis-an-ethics-committee-opinion-asrm-2026/"},
+        {"label": "Conception — erste Eizellen aus Stammzellen", "url": "https://www.disabled-world.com/news/research/stemcells/conception.php"}
+      ]
+    },
+    {
+      "rank": 2,
+      "name": "Partielle epigenetische Zellverjüngung",
+      "category": "Gesundheit",
+      "core_thesis": "Mit Yamanaka-Faktoren lassen sich Zellen ein Stück weit 'zurück-altern', ohne dass sie ihre Identität verlieren — der erste echte therapeutische Angriff auf das Altern selbst, nicht nur auf Symptome.",
+      "why_now": "Life Biosciences erhielt Anfang 2026 die FDA-Freigabe für ER-100 (Behandlung von Sehnerv-Erkrankungen) und dosierte im Juni 2026 erstmals einen Menschen — das weltweit erste klinische Programm partieller Reprogrammierung. NewLimit (u.a. von Coinbase-Chef Brian Armstrong finanziert) sammelte 2026 rund 435 Mio USD ein; Altos Labs testet Reprogrammierung bereits an außerhalb des Körpers am Leben gehaltenen Organen.",
+      "why_still_early": "Es ist genau der Sprung von Petrischale und Maus zur allerersten Humanstudie — Wirksamkeit und besonders Sicherheit (Krebsrisiko durch zu starke Reprogrammierung) sind beim Menschen unbewiesen. 'Longevity' ist zwar ein Buzzword, aber die konkrete Mechanik der partiellen Reprogrammierung ist außerhalb der Fachwelt kaum verstanden.",
+      "market_potential": "Altersbedingte Erkrankungen sind der mit Abstand größte Kostenblock der Gesundheitssysteme. Gelingt auch nur eine krankheitsspezifische Anwendung (z.B. Sehnerv, Immunsystem), öffnet das einen Multi-Milliarden-Markt; eine systemische Verjüngungstherapie wäre eine der größten Wertschöpfungen der Pharmageschichte.",
+      "timeframe": "2027-2033",
+      "early_signals": [
+        "Life Biosciences: ER-100 erste Humandosierung Juni 2026, FDA-IND Januar 2026, 80 Mio USD Series D",
+        "NewLimit: ~435 Mio USD Finanzierung (2026), Fokus Reprogrammierung von Immunzellen",
+        "Erste klinische Studie partieller Reprogrammierung startet 2026 (Berichte u.a. fightaging.org)"
+      ],
+      "investment_angles": [
+        {"thesis": "Klinische Reprogrammierungs-Plattformen in der Frühphase", "examples": "Life Biosciences, NewLimit, Altos Labs, Retro Biosciences"},
+        {"thesis": "Enabling-Technologie: zielgenaue Delivery und präzise epigenetische Alternsuhren zur Wirksamkeitsmessung", "examples": "Anbieter von Methylierungs-Alternsuhren und Gen-Delivery-Systemen"}
+      ],
+      "novelty_score": 83,
+      "growth_score": 92,
+      "main_risk": "Reprogrammierung kann im schlimmsten Fall Tumorbildung auslösen; scheitert die erste Generation von Humanstudien an der Sicherheit, kann das das gesamte Feld um Jahre zurückwerfen.",
+      "sources": [
+        {"label": "longevity.technology — Life Bio Rejuvenation", "url": "https://longevity.technology/news/life-bio-epigenetic-rejuvenation-transcends-organs/"},
+        {"label": "fightaging.org — erste Partial-Reprogramming-Studie", "url": "https://www.fightaging.org/archives/2026/02/the-first-clinical-trial-of-partial-reprogramming-will-start-soon/"},
+        {"label": "Labiotech — Anti-Aging-Firmen 2026", "url": "https://www.labiotech.eu/best-biotech/anti-aging-biotech-companies/"}
+      ]
+    },
+    {
+      "rank": 3,
+      "name": "Post-GPU-Rechenchips: Photonik & Analog-in-Memory",
+      "category": "AI",
+      "core_thesis": "KI-Inferenz nicht mehr auf strom-hungrigen GPUs, sondern mit Licht oder analogem In-Memory-Computing — die 'Picks & Shovels' für die sich zuspitzende Energiekrise der KI-Rechenzentren.",
+      "why_now": "Das britische Startup OLIX sammelte im Februar 2026 rund 220 Mio USD (angeführt von Hummingbird Ventures) bei über 1 Mrd USD Bewertung ein. 2026 erschienen in Nature Communications erste rackfähige photonische Tensor-Prozessoren für neuronale Netze sowie neuromorph-photonische Schaltkreise mit On-Chip-Analogspeicher. Treiber ist, dass der Stromverbrauch von KI-Rechenzentren zum eigentlichen Engpass der Branche wird.",
+      "why_still_early": "Analysten erwarten den Masseneinsatz im Rechenzentrum erst um ~2033, und das On-Chip-Training ist noch ungelöst. Während praktisch alles Kapital in GPUs und Modelle fließt, ist die nächste mögliche Plattform-Verschiebung jenseits von Nvidia kaum auf dem Radar der breiten Investorenschaft.",
+      "market_potential": "Der Markt für KI-Compute geht in die Hunderte Milliarden, und Energie ist zunehmend die bindende Nebenbedingung. Schon ein einstelliger Marktanteil bei der Inferenz-Hardware entspräche einem zweistellig-milliardenschweren Geschäft — mit dem Potenzial, die aktuelle GPU-Dominanz teilweise abzulösen.",
+      "timeframe": "2028-2034",
+      "early_signals": [
+        "OLIX: 220 Mio USD (Hummingbird Ventures), >1 Mrd USD Bewertung, Februar 2026",
+        "Nature Communications 2026: rackfähiger photonischer Tensor-Prozessor für DNN-Inferenz",
+        "Nature Communications 2026: neuromorph-photonischer Schaltkreis mit elektro-optischem Analogspeicher"
+      ],
+      "investment_angles": [
+        {"thesis": "Photonische Inferenz-Beschleuniger", "examples": "OLIX, Lightmatter, Celestial AI, Salience Labs"},
+        {"thesis": "Analog-In-Memory-Compute auf Basis von Phase-Change-/Memristor-Speicher", "examples": "IBM Research (PCM-Chips), Sagence AI, d-Matrix"}
+      ],
+      "novelty_score": 85,
+      "growth_score": 86,
+      "main_risk": "Der Zeithorizont bis zum Masseneinsatz (~2033) ist lang; klassische GPU-Effizienzfortschritte könnten den Vorsprung einholen, bevor Photonik und Analog-Compute im großen Maßstab skalieren.",
+      "sources": [
+        {"label": "SiliconANGLE — OLIX 220 Mio USD", "url": "https://siliconangle.com/2026/02/11/photonic-ai-chip-startup-olix-nabs-220m-investment/"},
+        {"label": "Nature Communications — photonischer Tensor-Prozessor", "url": "https://www.nature.com/articles/s41467-026-71599-2"},
+        {"label": "Nature Communications — neuromorph-photonischer Analogspeicher", "url": "https://www.nature.com/articles/s41467-026-69084-x"}
+      ]
+    }
+  ]
+}
