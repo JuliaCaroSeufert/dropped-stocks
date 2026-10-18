@@ -11,9 +11,9 @@
  * herunterladbar.
  */
 
-// WICHTIG: Vor dem Hochladen ändern! Mit diesem Passwort loggst du
-// dich auf admin.php ein, um die gesammelten Mails zu sehen.
-define('NAPTLY_ADMIN_PASSWORD', 'BITTE-AENDERN-xJ7k2pQ9');
+// Mit diesem Passwort loggst du dich auf admin.php ein, um die
+// gesammelten Mails zu sehen. (Für die Testphase bewusst einfach.)
+define('NAPTLY_ADMIN_PASSWORD', 'naptly2025');
 
 // Projektname (erscheint u. a. im Seitentitel)
 define('NAPTLY_BRAND', 'naptly');

@@ -32,9 +32,9 @@ Optional kannst du in `impressum.php` und `datenschutz.php` deine echten Angaben
 
 1. In IONOS einloggen → **Hosting** → dein Webhosting-Paket → **SFTP/FTP-Zugang** (Zugangsdaten anlegen/ansehen).
 2. Mit einem FTP-Programm (z. B. [FileZilla](https://filezilla-project.org/)) verbinden.
-3. Den **gesamten Inhalt** des Ordners `naptly/` in das Webroot-Verzeichnis deiner Domain
+3. Den **gesamten Inhalt** des Ordners `naptly-test/` in das Webroot-Verzeichnis deiner Domain
    hochladen (bei IONOS oft `/` bzw. der Ordner, der mit deiner Domain verknüpft ist).
-   Wichtig: Die Dateien kommen direkt ins Webroot, **nicht** in einen Unterordner `naptly/`,
+   Wichtig: Die Dateien kommen direkt ins Webroot, **nicht** in einen Unterordner `naptly-test/`,
    damit die Seite unter `https://naptly.<deine-endung>/` erscheint.
 4. Sicherstellen, dass der Ordner `data/` mit hochgeladen wurde und **beschreibbar** ist
    (Schreibrechte, meist `755`/`775` – IONOS setzt das i. d. R. automatisch korrekt).
@@ -65,7 +65,7 @@ exportieren.
 Mit installiertem PHP:
 
 ```bash
-cd naptly
+cd naptly-test
 php -S localhost:8000
 # Seite:  http://localhost:8000/
 # Admin:  http://localhost:8000/admin.php
