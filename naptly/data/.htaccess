@@ -1,0 +1,10 @@
+# Verhindert den direkten Zugriff auf die gespeicherten Anmeldungen über den Browser.
+# Apache 2.4+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+# Apache 2.2 (Fallback)
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
